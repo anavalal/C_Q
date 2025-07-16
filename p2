@@ -1,1 +1,32 @@
-(" {}: ".format("📋 Resultados"), "✅ {:,}".format(len(st.session_state.resultados)) if 'resultados' in st.session_state and st.session_state.resultados is not None else "❌ Sin análisis")
+results = await client.conn.fetch("""
+    SELECT 
+        m.*,
+        c.title AS conversation_title,
+        c.type AS conversation_type
+    FROM messages m
+    LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+    ORDER BY m."createdAt" DESC
+""")
+
+
+consulta = """
+    SELECT 
+        m.*,
+        c.title AS conversation_title,
+        c.type AS conversation_type
+    FROM messages m
+    LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+    ORDER BY m."createdAt" DESC
+"""
+
+
+consulta = f"""
+    SELECT 
+        m.*,
+        c.title AS conversation_title,
+        c.type AS conversation_type
+    FROM messages m
+    LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+    {clausula_where}
+    ORDER BY m."createdAt" DESC
+"""
