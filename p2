@@ -1,139 +1,4 @@
-@st.cache_data(ttl=300, show_spinner=False)
-def ejecutar_analisis_completo(_config_bd, filtros):
-    async def consulta():
-        client = PostgresConversationClient(**_config_bd)
-        await client.connect()
-        condiciones, parametros = [], []
-
-        if filtros.get('fecha_inicio') and filtros.get('fecha_fin'):
-            # CORRECCIÓN: Convertir a string ISO antes de enviar
-            inicio_str = f"{filtros['fecha_inicio']} 00:00:00+00:00"
-            fin_str = f"{filtros['fecha_fin']} 23:59:59+00:00"
-            condiciones.append('m."createdAt" BETWEEN $1 AND $2')
-            parametros.extend([inicio_str, fin_str])
-
-        mapeo_filtros = {'usuarios': 'm.user_id', 'roles': 'm.role', 'tipos': 'm.type'}
-        param_offset = len(parametros) + 1
-        
-        for clave, campo in mapeo_filtros.items():
-            if filtros.get(clave):
-                marcadores = ', '.join([f'${param_offset+i}' for i in range(len(filtros[clave]))])
-                condiciones.append(f'{campo} IN ({marcadores})')
-                parametros.extend(filtros[clave])
-                param_offset += len(filtros[clave])
-
-        if filtros.get('feedback'):
-            valores_fb = filtros['feedback']
-            if 'Sin feedback' in valores_fb:
-                valores_limpios = [v for v in valores_fb if v != 'Sin feedback']
-                if valores_limpios:
-                    marcadores = ', '.join([f'${param_offset+i}' for i in range(len(valores_limpios))])
-                    condiciones.append(f'(m.feedback IN ({marcadores}) OR m.feedback IS NULL)')
-                    parametros.extend(valores_limpios)
-                else:
-                    condiciones.append('m.feedback IS NULL')
-            else:
-                marcadores = ', '.join([f'${param_offset+i}' for i in range(len(valores_fb))])
-                condiciones.append(f'm.feedback IN ({marcadores})')
-                parametros.extend(valores_fb)
-
-        clausula_where = f"WHERE {' AND '.join(condiciones)}" if condiciones else ""
-        consulta = f"""
-            SELECT
-                m.*,
-                c.title AS conversation_title,
-                c.type AS conversation_type
-            FROM messages m
-            LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
-            {clausula_where}
-            ORDER BY m."createdAt" ASC
-        """
-
-        try:
-            resultados = await client.conn.fetch(consulta, *parametros)
-            await client.close()
-            df = pd.DataFrame([dict(fila) for fila in resultados])
-            if not df.empty and "createdAt" in df.columns:
-                df["createdAt"] = normalizar_fechas(df["createdAt"])
-            return df
-        except Exception as e:
-            logger.error(f"Error en consulta: {e}")
-            await client.close()
-            raise e
-            
-    return ejecutar_async(consulta())
-
-
-
-
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_conversaciones_por_feedback(_config_bd, tipos_feedback, fecha_inicio, fecha_fin):
-    """Obtiene conversaciones COMPLETAS que tienen al menos un mensaje con el feedback especificado"""
-    async def consulta():
-        client = PostgresConversationClient(**_config_bd)
-        await client.connect()
-
-        try:
-            # CORRECCIÓN: Usar strings ISO para las fechas
-            fecha_inicio_str = f"{fecha_inicio} 00:00:00+00:00"
-            fecha_fin_str = f"{fecha_fin} 23:59:59+00:00"
-            
-            parametros = [fecha_inicio_str, fecha_fin_str]
-            param_offset = 3
-
-            # Construir condición de feedback
-            feedback_cond = ""
-            if tipos_feedback and 'Sin feedback' not in tipos_feedback:
-                marcadores = ', '.join([f'${param_offset+i}' for i in range(len(tipos_feedback))])
-                feedback_cond = f" AND m.feedback IN ({marcadores})"
-                parametros.extend(tipos_feedback)
-            elif 'Sin feedback' in tipos_feedback and len(tipos_feedback) > 1:
-                tipos_limpios = [t for t in tipos_feedback if t != 'Sin feedback']
-                if tipos_limpios:
-                    marcadores = ', '.join([f'${param_offset+i}' for i in range(len(tipos_limpios))])
-                    feedback_cond = f" AND (m.feedback IN ({marcadores}) OR m.feedback IS NULL)"
-                    parametros.extend(tipos_limpios)
-            elif 'Sin feedback' in tipos_feedback and len(tipos_feedback) == 1:
-                feedback_cond = " AND m.feedback IS NULL"
-
-            # Consulta corregida
-            consulta = f"""
-                SELECT 
-                    m.*, 
-                    c.title AS conversation_title, 
-                    c.type AS conversation_type
-                FROM messages m
-                LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
-                WHERE m.conversation_id IN (
-                    SELECT DISTINCT conversation_id 
-                    FROM messages 
-                    WHERE "createdAt" BETWEEN $1 AND $2 {feedback_cond}
-                )
-                AND m."createdAt" BETWEEN $1 AND $2
-                ORDER BY m.conversation_id, m."createdAt" ASC
-            """
-
-            resultados = await client.conn.fetch(consulta, *parametros)
-            await client.close()
-            
-            df = pd.DataFrame([dict(fila) for fila in resultados])
-            if not df.empty and "createdAt" in df.columns:
-                df["createdAt"] = normalizar_fechas(df["createdAt"])
-            return df
-            
-        except Exception as e:
-            logger.error(f"Error en consulta de conversaciones por feedback: {e}")
-            await client.close()
-            raise e
-            
-    return ejecutar_async(consulta())
-
-
-
-
-
+# ==================== ANÁLISIS SIN FEEDBACK COMPLETO (CORREGIDO) ====================
 def analizar_conversaciones_sin_feedback(df):
     st.markdown("## 🔍 Análisis Completo de Conversaciones Sin Feedback")
 
@@ -141,40 +6,202 @@ def analizar_conversaciones_sin_feedback(df):
         st.info("ℹ️ No hay datos de feedback disponibles")
         return
 
+    # Asegurarnos de que tenemos las columnas necesarias
+    columnas_necesarias = ["conversation_id", "user_id", "createdAt", "content", "role"]
+    if not all(col in df.columns for col in columnas_necesarias):
+        st.error("❌ Faltan columnas necesarias para el análisis")
+        return
+
+    # Filtrar mensajes sin feedback
     sin_feedback = df[df["feedback"].isna()].copy()
+    
     if sin_feedback.empty:
         st.markdown('<div class="alerta-exito">✅ <strong>¡Excelente!</strong> Todas las conversaciones tienen feedback.</div>', unsafe_allow_html=True)
         return
 
-    # CORRECCIÓN: Ordenar por fecha para que los mensajes aparezcan en orden cronológico
-    sin_feedback = sin_feedback.sort_values("createdAt")
+    # Detectar problemas de formato en el contenido
+    problemas_formato = sin_feedback[sin_feedback["content"].str.contains(r'<div[^>]*>', na=False, regex=True)]
     
+    # Métricas generales
     total_sin_feedback = len(sin_feedback)
-    conversaciones_afectadas = sin_feedback["conversation_id"].nunique() if "conversation_id" in sin_feedback.columns else 0
-    usuarios_afectados = sin_feedback["user_id"].nunique() if "user_id" in sin_feedback.columns else 0
+    conversaciones_afectadas = sin_feedback["conversation_id"].nunique()
+    usuarios_afectados = sin_feedback["user_id"].nunique()
+    problemas_detectados = len(problemas_formato)
 
-    st.markdown(f'<div class="alerta-info">📋 <strong>{total_sin_feedback:,} mensajes sin feedback</strong> en <strong>{conversaciones_afectadas:,} conversaciones</strong> de <strong>{usuarios_afectados:,} usuarios</strong></div>', unsafe_allow_html=True)
+    # Mostrar métricas
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(crear_metrica("Mensajes sin Feedback", f"{total_sin_feedback:,}", "💬"), unsafe_allow_html=True)
+    with col2:
+        st.markdown(crear_metrica("Conversaciones Afectadas", f"{conversaciones_afectadas:,}", "🗣️"), unsafe_allow_html=True)
+    with col3:
+        st.markdown(crear_metrica("Usuarios Afectados", f"{usuarios_afectados:,}", "👥"), unsafe_allow_html=True)
+    with col4:
+        color_problemas = COLORES['peligro'] if problemas_detectados > 0 else COLORES['exito']
+        st.markdown(crear_metrica("Problemas de Formato", f"{problemas_detectados:,}", "⚠️", color_problemas), unsafe_allow_html=True)
 
-    # CORRECCIÓN: Agrupar y ordenar correctamente
+    # Análisis detallado por conversación
     grupos_conversacion = sin_feedback.groupby("conversation_id")
     
-    stats_conversaciones = sin_feedback.groupby("conversation_id").agg({
-        "id": "count", 
-        "user_id": "first", 
-        "conversation_title": "first",
-        "createdAt": ["min", "max"], 
-        "role": lambda x: list(x.unique()),
-        "type": lambda x: list(x.unique())
-    }).round(2)
+    # Crear estadísticas por conversación
+    stats_conversaciones = []
+    
+    for conv_id, datos_conv in grupos_conversacion:
+        # Filtrar mensajes problemáticos en esta conversación
+        problemas_conv = datos_conv[datos_conv["content"].str.contains(r'<div[^>]*>', na=False, regex=True)]
+        
+        stats = {
+            "conversation_id": conv_id,
+            "titulo": datos_conv["conversation_title"].iloc[0] if pd.notna(datos_conv["conversation_title"].iloc[0]) else "Sin título",
+            "usuario": datos_conv["user_id"].iloc[0],
+            "total_mensajes": len(datos_conv),
+            "problemas_formato": len(problemas_conv),
+            "fecha_inicio": datos_conv["createdAt"].min(),
+            "fecha_fin": datos_conv["createdAt"].max(),
+            "roles_unicos": datos_conv["role"].nunique(),
+            "tipos_unicos": datos_conv["type"].nunique() if "type" in datos_conv.columns else 0
+        }
+        
+        # Calcular duración
+        duracion = stats["fecha_fin"] - stats["fecha_inicio"]
+        stats["duracion"] = str(duracion).split('.')[0]  # Formato HH:MM:SS
+        
+        stats_conversaciones.append(stats)
+    
+    # Convertir a DataFrame y ordenar
+    df_stats = pd.DataFrame(stats_conversaciones)
+    df_stats = df_stats.sort_values("total_mensajes", ascending=False)
 
-    stats_conversaciones.columns = ["cantidad_mensajes", "id_usuario", "titulo", "tiempo_inicio", "tiempo_fin", "roles", "tipos"]
-    stats_conversaciones = stats_conversaciones.sort_values("cantidad_mensajes", ascending=False)
+    # Filtros adicionales
+    st.markdown('<div class="caja-filtros">', unsafe_allow_html=True)
+    st.markdown("### 🔧 Filtros de Análisis")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        mostrar_solo_problemas = st.checkbox("Mostrar solo conversaciones con problemas de formato", value=False)
+    
+    with col2:
+        min_mensajes = st.slider("Mínimo de mensajes por conversación", 1, 50, 1)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ... resto de la función permanece igual ...
+    # Aplicar filtros
+    if mostrar_solo_problemas:
+        df_stats = df_stats[df_stats["problemas_formato"] > 0]
+    
+    df_stats = df_stats[df_stats["total_mensajes"] >= min_mensajes]
 
+    if df_stats.empty:
+        st.info("ℹ️ No hay conversaciones que coincidan con los filtros actuales")
+        return
 
+    # Paginación
+    total_conversaciones = len(df_stats)
+    conversaciones_por_pagina = st.selectbox("Conversaciones por página:", [5, 10, 15, 20, 30], key="pag_sin_feedback", index=2)
 
+    if total_conversaciones > conversaciones_por_pagina:
+        total_paginas = (total_conversaciones + conversaciones_por_pagina - 1) // conversaciones_por_pagina
+        pagina_actual = st.selectbox(f"Página (Total: {total_paginas}):", range(1, total_paginas + 1), key="pag_actual_sin_feedback")
+        indice_inicio = (pagina_actual - 1) * conversaciones_por_pagina
+        indice_fin = indice_inicio + conversaciones_por_pagina
+        stats_pagina = df_stats.iloc[indice_inicio:indice_fin]
+        st.markdown(f'<div class="alerta-info">📄 Mostrando conversaciones {indice_inicio + 1} a {min(indice_fin, total_conversaciones)} de {total_conversaciones}</div>', unsafe_allow_html=True)
+    else:
+        stats_pagina = df_stats
 
+    # Mostrar conversaciones
+    for _, estadisticas in stats_pagina.iterrows():
+        # Determinar nivel de prioridad
+        if estadisticas["problemas_formato"] > 0:
+            nivel_prioridad = "🔴 Crítica (Formato roto)"
+            color_prioridad = COLORES['peligro']
+        elif estadisticas["total_mensajes"] > 15:
+            nivel_prioridad = "🟡 Alta (Muchos mensajes)"
+            color_prioridad = COLORES['advertencia']
+        else:
+            nivel_prioridad = "🟢 Media"
+            color_prioridad = COLORES['exito']
 
+        st.markdown(f"""
+        <div class="contenedor-conversacion">
+            <div class="encabezado-conversacion">
+                <div class="info-conversacion">
+                    <div class="titulo-conversacion">🗣️ Conversación {estadisticas['conversation_id']}</div>
+                    <div class="meta-conversacion">📋 <strong>Título:</strong> {estadisticas['titulo']}</div>
+                    <div class="meta-conversacion">👤 <strong>Usuario:</strong> {estadisticas['usuario']}</div>
+                    <div class="meta-conversacion">📅 <strong>Período:</strong> {estadisticas['fecha_inicio'].strftime('%Y-%m-%d %H:%M')} → {estadisticas['fecha_fin'].strftime('%Y-%m-%d %H:%M')}</div>
+                    <div class="meta-conversacion">⏱️ <strong>Duración:</strong> {estadisticas['duracion']}</div>
+                    <div class="meta-conversacion">⚠️ <strong>Prioridad:</strong> <span style="color: {color_prioridad}; font-weight: bold;">{nivel_prioridad}</span></div>
+                </div>
+                <div class="etiqueta-conversacion">{estadisticas['total_mensajes']} mensajes</div>
+            </div>
+        """, unsafe_allow_html=True)
 
+        # Resumen de la conversación
+        st.markdown(f"""
+        <div class="resumen-conversacion">
+            <strong>📊 Resumen de la Conversación</strong>
+            <div class="cuadricula-resumen">
+                <div class="item-resumen"><strong>🎭 Roles:</strong><br>{estadisticas['roles_unicos']}</div>
+                <div class="item-resumen"><strong>📝 Tipos:</strong><br>{estadisticas['tipos_unicos']}</div>
+                <div class="item-resumen"><strong>⚠️ Problemas:</strong><br>{estadisticas['problemas_formato']}</div>
+                <div class="item-resumen"><strong>📊 Promedio:</strong><br>{estadisticas['total_mensajes']/max(1, (estadisticas['fecha_fin'] - estadisticas['fecha_inicio']).days):.1f}/día</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
+        # Obtener los mensajes de esta conversación
+        mensajes_conv = sin_feedback[sin_feedback["conversation_id"] == estadisticas["conversation_id"]].sort_values("createdAt")
+
+        # Mostrar mensajes problemáticos primero
+        if estadisticas["problemas_formato"] > 0:
+            mensajes_problema = mensajes_conv[mensajes_conv["content"].str.contains(r'<div[^>]*>', na=False, regex=True)]
+            
+            with st.expander(f"🔍 Ver {len(mensajes_problema)} mensajes con problemas de formato", expanded=False):
+                for idx, (_, mensaje) in enumerate(mensajes_problema.iterrows(), 1):
+                    mostrar_mensaje_detallado(mensaje, idx, mensajes_problema)
+
+        # Mostrar todos los mensajes
+        with st.expander(f"👁️ Ver todos los {len(mensajes_conv)} mensajes sin feedback", expanded=False):
+            for idx, (_, mensaje) in enumerate(mensajes_conv.iterrows(), 1):
+                mostrar_mensaje_detallado(mensaje, idx, mensajes_conv)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("---")
+
+def mostrar_mensaje_detallado(mensaje, indice, df_contexto):
+    """Función auxiliar para mostrar mensajes detallados"""
+    rol = mensaje.get("role", "N/A").lower()
+    contenido_raw = mensaje.get("content", "[Sin contenido]").strip()
+    timestamp = pd.to_datetime(mensaje.get("createdAt", "")).strftime("%Y-%m-%d %H:%M:%S")
+    tipo_mensaje = mensaje.get("type", "general")
+    
+    # Detectar problemas
+    tiene_problema = bool(re.search(r'<div[^>]*>', contenido_raw))
+    
+    clase_css = "mensaje-usuario" if rol == "user" else "mensaje-asistente" if rol == "assistant" else "mensaje-sistema"
+    icono = "👤" if rol == "user" else "🤖" if rol == "assistant" else "⚙️"
+    
+    if tiene_problema:
+        clase_css += " problema-formato"
+        icono = "⚠️"
+    
+    st.markdown(f"""
+    <div class="item-mensaje {clase_css}">
+        <div class="encabezado-mensaje">
+            <div class="rol-mensaje">
+                <span>{icono}</span>
+                <span><strong>Mensaje #{indice} - {rol.title()}</strong></span>
+                <span style="font-size:0.8rem;color:#6c757d;">({tipo_mensaje})</span>
+            </div>
+            <div class="tiempo-mensaje">🕐 {timestamp}</div>
+        </div>
+        <div class="contenido-mensaje">
+            <strong>💬 Contenido:</strong><br>
+            <div style="background: {'#ffebee' if tiene_problema else '#f8f9fa'}; padding: 0.5rem; border-radius: 4px; margin: 0.5rem 0;">
+                {formatear_mensaje_tool(contenido_raw)}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
