@@ -1,33 +1,9 @@
-❌ Error: invalid input for query argument $1: datetime.datetime(2025, 7, 13, 0, 0, tzi... (expected str, got datetime)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta, timezone
 import json  # Necesario para formatear mensajes
 
 # Asegúrate de que esta ruta sea correcta según tu estructura
@@ -168,7 +144,10 @@ def cargar_datos(_usuario, _contraseña, _servidor, _base_datos):
         client = PostgresConversationClient(user=_usuario, password=_contraseña, host=_servidor, database=_base_datos)
         await client.connect()
         consulta = """
-        SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
+        SELECT
+        m.*,
+        c.title AS conversation_title,
+        c.type AS conversation_type
         FROM messages m
         LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
         ORDER BY m."createdAt" DESC
@@ -213,6 +192,14 @@ def mostrar_filtros(df):
         inicio_dt = pd.Timestamp(fecha_inicio, tz='UTC')
         fin_dt = pd.Timestamp(fecha_fin, tz='UTC') + pd.Timedelta(hours=23, minutes=59, seconds=59)
         df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
+        st.write("🔍 DEBUG – Rango filtrado:")
+        st.write("inicio_dt:", inicio_dt)
+        st.write("fin_dt  :", fin_dt)
+        st.write("mínimo en datos:", df["createdAt"].min())
+        st.write("máximo en datos:", df["createdAt"].max())
+        st.write("filas sin filtro:", len(df))
+        st.write("filas con filtro:", len(df_filtrado))
+
     except:
         df_filtrado = df
 
@@ -285,8 +272,12 @@ def ejecutar_analisis_completo(_config_bd, filtros):
         condiciones, parametros = [], []
 
         if filtros.get('fecha_inicio') and filtros.get('fecha_fin'):
-            condiciones.append(f'm."createdAt" BETWEEN ${len(parametros)+1} AND ${len(parametros)+2}')
-            parametros.extend([f"{filtros['fecha_inicio']} 00:00:00+00:00", f"{filtros['fecha_fin']} 23:59:59+00:00"])
+            inicio_dt = datetime.combine(filtros['fecha_inicio'], time.min, tzinfo=timezone.utc).isoformat()
+            fin_dt    = datetime.combine(filtros['fecha_fin'],   time.max, tzinfo=timezone.utc).isoformat()
+            condiciones.append('m."createdAt" BETWEEN $1 AND $2')
+            parametros.extend([inicio_dt, fin_dt])
+
+
 
         mapeo_filtros = {'usuarios': 'm.user_id', 'roles': 'm.role', 'tipos': 'm.type'}
         for clave, campo in mapeo_filtros.items():
@@ -312,12 +303,15 @@ def ejecutar_analisis_completo(_config_bd, filtros):
 
         clausula_where = f"WHERE {' AND '.join(condiciones)}" if condiciones else ""
         consulta = f"""
-        SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
-        FROM messages m
-        LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
-        {clausula_where}
-        ORDER BY m."createdAt" DESC
-        """
+    SELECT
+        m.*,
+        c.title AS conversation_title,
+        c.type AS conversation_type
+    FROM messages m
+    LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+    {clausula_where}
+    ORDER BY m."createdAt" DESC
+"""
 
         resultados = await client.conn.fetch(consulta, *parametros)
         await client.close()
@@ -630,7 +624,7 @@ def formatear_diccionario_tool(data):
     """
 
     # Título o nombre del documento
-    titulo = data.get('title', '') or data.get('name', '') or 'Documento Técnico'
+    titulo = data.get('title', '') or data.get('name', '') or 'Sin nombre'
     html += f"""
     <div style="display: flex; align-items: center; margin-bottom: 1rem;">
         <span style="font-size: 1.5rem; margin-right: 0.5rem;">📄</span>
@@ -1018,6 +1012,11 @@ def mostrar_resultados_cliente(df, configuracion):
 
     # Tabla de datos
     st.markdown("### 📊 Tabla de Datos Analizados")
+
+    # 🔍 DEBUG: últimos 10 registros filtrados
+    st.write("🔍 Últimos 10 registros filtrados:")
+    st.dataframe(df.tail(10)[["createdAt", "user_id", "content"]])
+
     columnas_mostrar = configuracion.get('mostrar_columnas', [])
     if columnas_mostrar:
         columnas_existentes = [col for col in columnas_mostrar if col in df.columns]
