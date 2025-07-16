@@ -1,3 +1,29 @@
+
+from datetime import datetime, time, timedelta, timezone
+
+if filtros.get('fecha_inicio') and filtros.get('fecha_fin'):
+    inicio_dt = datetime.combine(filtros['fecha_inicio'], time.min, tzinfo=timezone.utc)
+    fin_dt    = datetime.combine(filtros['fecha_fin'], time.max, tzinfo=timezone.utc)
+    condiciones.append('m."createdAt" BETWEEN $1 AND $2')
+    parametros.extend([inicio_dt, fin_dt])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # 🔍 DEBUG: últimos 10 registros filtrados
 st.write("🔍 Últimos 10 registros filtrados:")
 st.dataframe(df.tail(10)[["createdAt", "user_id", "content"]])
