@@ -1,3 +1,251 @@
+# ANTES
+contenido = mensaje.get("content", "[Sin contenido]").strip()
+
+# DESPUÉS
+contenido_raw = mensaje.get("content", "[Sin contenido]").strip()
+contenido = formatear_mensaje_tool(contenido_raw, mensaje.get("metadata"))
+
+# ==================== FORMATEADOR UNIVERSAL PARA MENSAJES TOOL ====================
+def formatear_mensaje_tool(contenido, metadata=None):
+    """
+    Formateador universal para mensajes Tool (cualquier vendor/documento)
+    Detecta automáticamente el tipo de contenido y lo organiza
+    """
+    
+    # Limpiar el contenido
+    if isinstance(contenido, dict):
+        data = contenido
+    else:
+        try:
+            import json
+            data = json.loads(contenido) if contenido.startswith('{') or contenido.startswith('[') else contenido
+        except:
+            data = str(contenido)
+    
+    # Detectar tipo de contenido y formatear apropiadamente
+    if isinstance(data, dict):
+        return formatear_diccionario_tool(data)
+    elif isinstance(data, list):
+        return formatear_lista_tool(data)
+    else:
+        return formatear_texto_tool(str(data))
+
+def formatear_diccionario_tool(data):
+    """Formatea diccionarios JSON de forma elegante"""
+    
+    html = """
+    <div style="background: linear-gradient(135deg,#f8f9fa,#e9ecef); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #1f77b4; margin: 1rem 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    """
+    
+    # Título o nombre del documento
+    titulo = data.get('title', '') or data.get('name', '') or 'Documento Técnico'
+    html += f"""
+    <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+        <span style="font-size: 1.5rem; margin-right: 0.5rem;">📄</span>
+        <h3 style="margin: 0; color: #2c3e50; font-weight: bold;">{titulo}</h3>
+    </div>
+    """
+    
+    # Organizar por secciones comunes
+    secciones = {
+        'contenido': 'Contenido Principal',
+        'content': 'Contenido',
+        'description': 'Descripción',
+        'summary': 'Resumen',
+        'citations': 'Referencias',
+        'url': 'Enlace',
+        'filepath': 'Archivo',
+        'chunk': 'Fragmento',
+        'metadata': 'Metadatos'
+    }
+    
+    for key, label in secciones.items():
+        if key in data and data[key]:
+            valor = data[key]
+            
+            if key == 'url' and valor:
+                html += f"""
+                <div style="margin: 0.5rem 0;">
+                    <strong>{label}:</strong>
+                    <a href="{valor}" target="_blank" style="color: #1f77b4; margin-left: 0.5rem;">
+                        🔗 Ver documento
+                    </a>
+                </div>
+                """
+            elif key == 'filepath' and valor:
+                html += f"""
+                <div style="margin: 0.5rem 0;">
+                    <strong>{label}:</strong>
+                    <span style="font-family: 'Courier New'; font-size: 0.9rem; background: white; padding: 0.2rem 0.5rem; border-radius: 4px;">
+                        {valor}
+                    </span>
+                </div>
+                """
+            elif key == 'metadata' and isinstance(valor, dict):
+                html += formatear_metadata(valor)
+            elif key == 'citations' and isinstance(valor, list):
+                html += formatear_citations(valor)
+            else:
+                # Contenido normal
+                if isinstance(valor, str) and len(valor) > 200:
+                    html += f"""
+                    <div style="margin: 0.5rem 0;">
+                        <strong>{label}:</strong>
+                        <div style="background: white; padding: 0.8rem; border-radius: 6px; margin-top: 0.3rem;">
+                            <p style="margin: 0; white-space: pre-wrap; font-size: 0.9rem;">{valor[:500]}...</p>
+                        </div>
+                    </div>
+                    """
+                else:
+                    html += f"""
+                    <div style="margin: 0.5rem 0;">
+                        <strong>{label}:</strong> {valor}
+                    </div>
+                    """
+    
+    html += "</div>"
+    return html
+
+def formatear_lista_tool(data_list):
+    """Formatea listas de forma clara"""
+    
+    html = """
+    <div style="background: linear-gradient(135deg,#fff8f0,#ffe6d6); padding: 1rem; border-radius: 8px; border-left: 4px solid #ff7f0e; margin: 1rem 0;">
+        <h4 style="margin: 0 0 0.5rem 0; color: #2c3e50;">
+            <span style="font-size: 1.2rem;">📋</span> Lista de elementos
+        </h4>
+        <div style="background: white; padding: 0.5rem; border-radius: 4px;">
+    """
+    
+    for i, item in enumerate(data_list, 1):
+        if isinstance(item, dict):
+            item_title = item.get('title', '') or item.get('name', '') or f"Elemento {i}"
+            html += f"""
+            <div style="margin: 0.5rem 0; padding: 0.5rem; background: #f8f9fa; border-radius: 4px;">
+                <strong>{i}. {item_title}</strong>
+                <div style="font-size: 0.9rem; color: #6c757d;">{str(item)[:200]}...</div>
+            </div>
+            """
+        else:
+            html += f"<div style='margin: 0.3rem 0; padding: 0.3rem;'>• {str(item)[:100]}...</div>"
+    
+    html += "</div></div>"
+    return html
+
+def formatear_texto_tool(texto):
+    """Formatea texto plano de forma elegante"""
+    
+    # Detectar si es código o JSON en texto
+    if texto.startswith('{') or texto.startswith('['):
+        return f"""
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #6c757d;">
+            <h4 style="margin: 0 0 0.5rem 0; color: #2c3e50;">📝 Contenido Técnico</h4>
+            <pre style="background: white; padding: 0.8rem; border-radius: 4px; font-size: 0.9rem; white-space: pre-wrap; margin: 0;">{texto[:800]}...</pre>
+        </div>
+        """
+    
+    # Detectar tablas en texto
+    lines = texto.split('\n')
+    if any('|' in line for line in lines[:5]):
+        return formatear_tabla_texto(texto)
+    
+    # Texto normal
+    return f"""
+    <div style="background: linear-gradient(135deg,#f0f8ff,#e6f3ff); padding: 1rem; border-radius: 8px; border-left: 4px solid #1f77b4;">
+        <p style="margin: 0; white-space: pre-wrap; line-height: 1.5;">{texto[:800]}...</p>
+    </div>
+    """
+
+def formatear_metadata(metadata):
+    """Formatea metadatos de forma organizada"""
+    
+    html = """
+    <div style="margin: 0.5rem 0;">
+        <strong>Metadatos:</strong>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; margin-top: 0.3rem;">
+    """
+    
+    for key, value in metadata.items():
+        if value and str(value).strip():
+            html += f"""
+            <div style="background: white; padding: 0.3rem; border-radius: 4px; font-size: 0.85rem;">
+                <strong>{key.title()}:</strong> {str(value)[:50]}...
+            </div>
+            """
+    
+    html += "</div></div>"
+    return html
+
+def formatear_citations(citations):
+    """Formatea citas de forma clara"""
+    
+    html = """
+    <div style="margin: 0.5rem 0;">
+        <strong>Referencias:</strong>
+    """
+    
+    for citation in citations[:3]:  # Mostrar máximo 3
+        titulo = citation.get('title', 'Documento sin título')
+        url = citation.get('url', '')
+        
+        html += f"""
+        <div style="background: white; padding: 0.5rem; border-radius: 4px; margin: 0.3rem 0;">
+            <strong>📄 {titulo}</strong>
+            {f'<a href="{url}" target="_blank" style="color: #1f77b4; margin-left: 0.5rem;">🔗 Ver</a>' if url else ''}
+        </div>
+        """
+    
+    if len(citations) > 3:
+        html += f"<small style='color: #6c757d;'>... y {len(citations)-3} más</small>"
+    
+    html += "</div>"
+    return html
+
+def formatear_tabla_texto(texto):
+    """Detecta y formatea tablas en texto"""
+    
+    lines = [line.strip() for line in texto.split('\n') if line.strip()]
+    table_lines = [line for line in lines if '|' in line]
+    
+    if table_lines:
+        html = """
+        <div style="overflow-x: auto; margin: 1rem 0;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        """
+        
+        for i, line in enumerate(table_lines):
+            cells = [cell.strip() for cell in line.split('|') if cell.strip()]
+            if cells:
+                tag = 'th' if i == 0 else 'td'
+                bg_color = '#f8f9fa' if i == 0 else 'white'
+                html += f"<tr style='background: {bg_color};'>"
+                
+                for cell in cells:
+                    html += f"<{tag} style='padding: 0.5rem; border: 1px solid #dee2e6; text-align: left;'>{cell}</{tag}>"
+                
+                html += "</tr>"
+        
+        html += "</table></div>"
+        return html
+    
+    return formatear_texto_tool(texto)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
