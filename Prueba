@@ -1,3 +1,32 @@
+# Limpiar el WHERE para la subquery
+if condiciones:
+    condiciones_limpias = [c.replace('m.', '') for c in condiciones]
+    subquery_where = f"WHERE {' AND '.join(condiciones_limpias)}"
+else:
+    subquery_where = ""
+
+consulta = f"""
+SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
+FROM messages m
+JOIN conversations c ON m.conversation_id = c.conversation_id
+WHERE m.conversation_id IN (
+    SELECT DISTINCT conversation_id 
+    FROM messages 
+    {subquery_where}
+)
+ORDER BY m."createdAt" DESC
+"""
+
+
+
+
+
+
+
+
+
+
+
 primport streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
