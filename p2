@@ -1,31 +1,86 @@
-try:
-    # Conversión manual para zona horaria Madrid (UTC+2 en verano)
-    offset = pd.Timedelta(hours=2)
-    inicio_dt = (pd.Timestamp(fecha_inicio) + offset).tz_localize('UTC')
-    fin_dt = (pd.Timestamp(fecha_fin) + pd.Timedelta(hours=23, minutes=59, seconds=59) + offset).tz_localize('UTC')
-    
-    st.session_state.df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
-    df_filtrado = st.session_state.df_filtrado
-    
-    # Debug: Mostrar rangos
-    st.sidebar.caption(f"🔍 Filtrando: {inicio_dt.strftime('%Y-%m-%d %H:%M')} → {fin_dt.strftime('%Y-%m-%d %H:%M')} UTC")
-except Exception as e:
-    st.error(f"Error filtrando fechas: {e}")
-    st.session_state.df_filtrado = df
-    df_filtrado = st.session_state.df_filtrado
+# ==================== FUNCIONES ADMIN SEMI-AUTOMÁTICAS ====================
+async def detectar_userids_no_legibles():
+    """Devuelve los user_id que NO parecen nombres reales"""
+    client = PostgresConversationClient(**st.session_state.config_bd)
+    await client.connect()
+    rows = await client.conn.fetch("SELECT DISTINCT user_id FROM messages WHERE user_id IS NOT NULL")
+    await client.close()
+    return [
+        str(r["user_id"]) for r in rows
+        if (
+            " " not in str(r["user_id"])
+            or len(str(r["user_id"])) < 4
+            or str(r["user_id"]).count("-") >= 3
+            or str(r["user_id"]).isdigit()
+        )
+    ]
+
+async def actualizar_user_ids(user_map):
+    """Ejecuta UPDATEs con el mapeo recibido"""
+    client = PostgresConversationClient(**st.session_state.config_bd)
+    await client.connect()
+    for old, new in user_map.items():
+        if new.strip():
+            await client.conn.execute(
+                "UPDATE messages SET user_id = $1 WHERE user_id = $2",
+                new.strip(), old
+            )
+    await client.close()
+
+def generar_csv_mapeo(userids):
+    """Devuelve CSV descargable con columnas User_ID,Nombre_Real"""
+    df = pd.DataFrame({"User_ID": userids, "Nombre_Real": [""] * len(userids)})
+    return df.to_csv(index=False, encoding="utf-8-sig", sep=";")
+
+def cargar_csv_mapeo(uploaded_file):
+    """Lee CSV y devuelve dict {User_ID:Nombre_Real}"""
+    df = pd.read_csv(uploaded_file, sep=";", encoding="utf-8-sig")
+    return dict(zip(df["User_ID"].astype(str), df["Nombre_Real"].astype(str)))
 
 
 
-with st.sidebar:
-    if st.session_state.datos is not None and not st.session_state.datos.empty:
-        ultimo_mensaje = st.session_state.datos["createdAt"].max()
-        st.caption(f"📅 Último mensaje en BD: {ultimo_mensaje.strftime('%Y-%m-%d %H:%M')} UTC")
 
 
-
-
-
-
+    # ===== PANEL ADMIN SEMI-AUTOMÁTICO =====
+    if st.session_state.bd_conectada:
+        with st.sidebar.expander("🔧 Admin - Renombrar user_id", expanded=False):
+            clave = st.text_input("Clave admin", type="password", key="clave_admin")
+            if clave == "avad2025":
+                try:
+                    userids = ejecutar_async(detectar_userids_no_legibles())
+                    if not userids:
+                        st.success("✅ Todos los user_id ya son legibles")
+                    else:
+                        st.info(f"📋 {len(userids)} user_id pendientes")
+                        tab1, tab2 = st.tabs(["Formulario", "Export / Import CSV"])
+                        with tab1:
+                            df_map = pd.DataFrame({"User_ID_actual": userids, "Nombre_Real": [""]*len(userids)})
+                            edited = st.data_editor(df_map, use_container_width=True, key="editor")
+                            if st.button("💾 Confirmar cambios"):
+                                mapeo = dict(zip(edited["User_ID_actual"], edited["Nombre_Real"]))
+                                mapeo = {k: v for k, v in mapeo.items() if str(v).strip()}
+                                if mapeo:
+                                    with st.spinner("Actualizando..."):
+                                        ejecutar_async(actualizar_user_ids(mapeo))
+                                        st.cache_data.clear()
+                                        st.success("✅ Actualizado. Recarga la página.")
+                                else:
+                                    st.warning("⚠️ Rellena al menos un nombre")
+                        with tab2:
+                            csv_plantilla = generar_csv_mapeo(userids)
+                            st.download_button("📥 Descargar plantilla CSV", csv_plantilla, "mapeo_user_id.csv", "text/csv")
+                            uploaded = st.file_uploader("Subir CSV actualizado", type="csv")
+                            if uploaded:
+                                mapeo = cargar_csv_mapeo(uploaded)
+                                if st.button("💾 Aplicar CSV"):
+                                    with st.spinner("Actualizando..."):
+                                        ejecutar_async(actualizar_user_ids(mapeo))
+                                        st.cache_data.clear()
+                                        st.success("✅ CSV aplicado. Recarga la página.")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            elif clave:
+                st.error("❌ Clave incorrecta")
 
 
 
