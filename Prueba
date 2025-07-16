@@ -1,4 +1,42 @@
+import sys
+import os
+import pandas as pd
+import json
+from urllib.parse import urlparse, unquote
 
+import logging
+
+# Create a root logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Get the logger for all azure-related logs
+azure_logger = logging.getLogger('azure')
+
+# Set its level to WARNING, so INFO-level logs won't appear
+azure_logger.setLevel(logging.INFO)
+
+# Remove any existing handlers
+logger.handlers = []
+
+# Create a handler that prints to stdout
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.DEBUG)
+
+# Create a formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(ch)
+
+
+# Get the absolute path to the parent directory
+parent_dir = os.path.abspath(os.path.join(os.getcwd(), '..'))
+
+# Add the parent directory to sys.path
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 import asyncio
 import pandas as pd
@@ -41,6 +79,29 @@ print(f"📊 Registros: {len(df)}")
 print(f"📋 Columnas: {len(df.columns)}")
 
 
+
+RuntimeError                              Traceback (most recent call last)
+Cell In[3], line 34
+     31     return pd.DataFrame([dict(row) for row in results])
+     33 # Ejecutar y guardar
+---> 34 df = asyncio.run(extraer())
+     35 df.to_excel(OUTPUT_PATH, index=False)
+     37 print(f"✅ Guardado en: {OUTPUT_PATH}")
+
+File ~\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:186, in run(main, debug)
+    161 """Execute the coroutine and return the result.
+    162 
+    163 This function runs the passed coroutine, taking care of
+   (...)    182     asyncio.run(main())
+    183 """
+    184 if events._get_running_loop() is not None:
+    185     # fail fast with short traceback
+--> 186     raise RuntimeError(
+    187         "asyncio.run() cannot be called from a running event loop")
+    189 with Runner(debug=debug) as runner:
+    190     return runner.run(main)
+
+RuntimeError: asyncio.run() cannot be called from a running event loop
 
 
 
