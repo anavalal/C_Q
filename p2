@@ -1,13 +1,25 @@
-# Aplicar filtro temporal
 try:
-    inicio_dt = pd.Timestamp(fecha_inicio, tz='UTC')
-    fin_dt = pd.Timestamp(fecha_fin, tz='UTC') + pd.Timedelta(hours=23, minutes=59, seconds=59)
+    # Conversión manual para zona horaria Madrid (UTC+2 en verano)
+    offset = pd.Timedelta(hours=2)
+    inicio_dt = (pd.Timestamp(fecha_inicio) + offset).tz_localize('UTC')
+    fin_dt = (pd.Timestamp(fecha_fin) + pd.Timedelta(hours=23, minutes=59, seconds=59) + offset).tz_localize('UTC')
+    
     st.session_state.df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
     df_filtrado = st.session_state.df_filtrado
-except:
+    
+    # Debug: Mostrar rangos
+    st.sidebar.caption(f"🔍 Filtrando: {inicio_dt.strftime('%Y-%m-%d %H:%M')} → {fin_dt.strftime('%Y-%m-%d %H:%M')} UTC")
+except Exception as e:
+    st.error(f"Error filtrando fechas: {e}")
     st.session_state.df_filtrado = df
     df_filtrado = st.session_state.df_filtrado
 
+
+
+with st.sidebar:
+    if st.session_state.datos is not None and not st.session_state.datos.empty:
+        ultimo_mensaje = st.session_state.datos["createdAt"].max()
+        st.caption(f"📅 Último mensaje en BD: {ultimo_mensaje.strftime('%Y-%m-%d %H:%M')} UTC")
 
 
 
