@@ -1,1 +1,232 @@
-ferd
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import asyncio
+import logging
+from datetime import datetime, timedelta
+import json
+
+from batch.utilities.chat_history.postgresdbservice import PostgresConversationClient
+
+# ==================== CONFIGURACIÓN  ====================
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+
+st.set_page_config(
+    page_title="RAN AVAD Analytics Dashboard",
+    page_icon="💬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+plt.rcParams.update({'font.size': 11, 'figure.facecolor': 'white', 'axes.facecolor': '#fafafa', 'grid.alpha': 0.3})
+
+COLORES = {
+    'primario': '#1f77b4', 'exito': '#2ca02c', 'peligro': '#d62728',
+    'advertencia': '#ff7f0e', 'info': '#17becf', 'secundario': '#7f7f7f'
+}
+
+# ==================== FUNCIONES CORE ====================
+@st.cache_data(ttl=60, show_spinner=False)  # ✅ CACHE REDUCIDO para actualización frecuente
+def normalizar_fechas(serie_dt):
+    if serie_dt.empty:
+        return serie_dt
+    return pd.to_datetime(serie_dt, errors='coerce', utc=True)
+
+def ejecutar_async(corrutina):
+    try:
+        return asyncio.get_event_loop().run_until_complete(corrutina)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(corrutina)
+
+# ==================== ESTILOS Y MÉTRICAS ====================
+def aplicar_estilos():
+    st.markdown("""
+    <style>
+    .encabezado-principal {background:linear-gradient(90deg,#667eea,#764ba2);padding:2rem;border-radius:10px;color:white;text-align:center;margin-bottom:1.5rem;}
+    .tarjeta-metrica {background:white;padding:1.2rem;border-radius:8px;border-left:4px solid #1f77b4;margin:0.5rem 0;box-shadow:0 3px 10px rgba(0,0,0,0.1);}
+    .item-mensaje {background:#f8f9fa;border-radius:8px;padding:1rem;margin:0.8rem 0;border-left:4px solid #6c757d;}
+    .contenedor-conversacion {background:white;border-radius:10px;padding:1.5rem;margin:1rem 0;border-left:5px solid #d62728;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+    </style>
+    """, unsafe_allow_html=True)
+
+def crear_metrica(titulo, valor, icono="📊", color=COLORES['primario']):
+    return f"""
+    <div class="tarjeta-metrica" style="border-left-color:{color};">
+        <div class="numero-metrica" style="color:{color};">{valor}</div>
+        <div class="etiqueta-metrica">{titulo}</div>
+    </div>
+    """
+
+# ==================== INICIALIZACIÓN ====================
+if 'bd_conectada' not in st.session_state:
+    st.session_state.bd_conectada = False
+if 'datos' not in st.session_state:
+    st.session_state.datos = None
+if 'resultados' not in st.session_state:
+    st.session_state.resultados = None
+
+# ==================== CONEXIÓN BD ====================
+def mostrar_conexion():
+    with st.sidebar:
+        st.markdown("### 🔗 Conexión a Base de Datos")
+        usuario = st.text_input("Usuario", "usravad")
+        contraseña = st.text_input("Contraseña", "P@w0Rd1.2@25", type="password")
+        servidor = st.text_input("Servidor", "teepq02s-euwepc-teradpgsql.postgres.database.azure.com")
+        base_datos = st.text_input("Base de Datos", "avad_pre")
+        conectar = st.button("🚀 Conectar", type="primary", use_container_width=True)
+        if st.session_state.bd_conectada:
+            st.success("✅ Conectado")
+    return usuario, contraseña, servidor, base_datos, conectar
+
+@st.cache_data(ttl=60, show_spinner=False)  # ✅ CACHE REDUCIDO
+def cargar_datos(_usuario, _contraseña, _servidor, _base_datos):
+    async def obtener():
+        client = PostgresConversationClient(user=_usuario, password=_contraseña, host=_servidor, database=_base_datos)
+        await client.connect()
+        consulta = """
+        SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
+        FROM messages m
+        LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+        ORDER BY m."createdAt" DESC
+        """
+        resultados = await client.conn.fetch(consulta)
+        await client.close()
+        df = pd.DataFrame([dict(fila) for fila in resultados])
+        if not df.empty and "createdAt" in df.columns:
+            df["createdAt"] = normalizar_fechas(df["createdAt"])
+        return df
+    return ejecutar_async(obtener())
+
+# ==================== FILTROS ====================
+def mostrar_filtros(df):
+    st.markdown("## 🎛️ Panel de Filtros")
+    if df.empty:
+        st.warning("⚠️ No hay datos disponibles")
+        return None, False
+
+    try:
+        fechas = pd.to_datetime(df["createdAt"], errors='coerce').dropna()
+        fecha_min = fechas.min().date() if not fechas.empty else datetime.now().date() - timedelta(days=30)
+        fecha_max = fechas.max().date() if not fechas.empty else datetime.now().date()
+    except:
+        fecha_min = datetime.now().date() - timedelta(days=30)
+        fecha_max = datetime.now().date()
+
+    col1, col2 = st.columns(2)
+    fecha_inicio = col1.date_input("Fecha de Inicio", fecha_min)
+    fecha_fin = col2.date_input("Fecha de Fin", fecha_max)
+
+    filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin}
+    ejecutar = st.button("🚀 Ejecutar Análisis", type="primary", use_container_width=True)
+    return filtros, ejecutar
+
+# ==================== PRESENTACIÓN DE RESULTADOS ====================
+def mostrar_resultados_cliente(df, configuracion):
+    st.markdown("## 📋 Resultados del Análisis")
+
+    if df.empty:
+        st.warning("⚠️ No se encontraron datos")
+        return
+
+    # ✅ MOSTRAR TODOS LOS MENSAJES SIN FILTRAR
+    st.markdown("### 💬 Todos los Mensajes (sin filtro por feedback)")
+    
+    if "conversation_id" in df.columns:
+        conversaciones = df.groupby("conversation_id")
+        
+        for conv_id, mensajes in conversaciones:
+            with st.expander(f"🗣️ Conversación {conv_id} - {len(mensajes)} mensajes", expanded=False):
+                for _, mensaje in mensajes.iterrows():
+                    rol = mensaje.get("role", "N/A")
+                    contenido = mensaje.get("content", "[Sin contenido]")
+                    fecha = pd.to_datetime(mensaje.get("createdAt", "")).strftime("%Y-%m-%d %H:%M")
+                    feedback = mensaje.get("feedback", "Sin feedback")
+                    
+                    st.markdown(f"""
+                    <div class="item-mensaje">
+                        <strong>{rol.title()} - {fecha} - Feedback: {feedback}</strong><br>
+                        {contenido[:500]}{'...' if len(contenido) > 500 else ''}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    # Tabla de datos
+    st.markdown("### 📊 Tabla Completa")
+    st.dataframe(df, use_container_width=True, height=500)
+
+    # Exportación
+    try:
+        df_exportar = df.copy()
+        for col in df_exportar.select_dtypes(include='datetime64'):
+            df_exportar[col] = df_exportar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+        csv = df_exportar.to_csv(index=False, encoding='utf-8-sig', sep=';')
+        st.download_button("📥 Descargar CSV", csv, f"datos_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
+    except Exception as e:
+        st.error(f"Error en exportación: {e}")
+
+# ==================== APLICACIÓN PRINCIPAL ====================
+def main():
+    aplicar_estilos()
+
+    st.markdown(f"""
+    <div class="encabezado-principal">
+        <h1>📊 RAN AVAD Analytics Dashboard</h1>
+        <p>Métricas completas - WebApp | 📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    usuario, contraseña, servidor, base_datos, conectar = mostrar_conexion()
+
+    if conectar:
+        with st.spinner("🔄 Cargando datos desde la base de datos..."):
+            try:
+                datos_completos = cargar_datos(usuario, contraseña, servidor, base_datos)
+                st.session_state.datos = datos_completos
+                st.session_state.config_bd = {"user": usuario, "password": contraseña, "host": servidor, "database": base_datos}
+                st.session_state.bd_conectada = True
+                st.success(f"✅ Conectado! {len(datos_completos):,} registros cargados")
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+                st.session_state.bd_conectada = False
+
+    if st.session_state.datos is not None:
+        tab1, tab2 = st.tabs(["📊 Análisis General", "🔄 Refrescar Datos"])
+
+        with tab1:
+            filtros, ejecutar = mostrar_filtros(st.session_state.datos)
+            if ejecutar:
+                try:
+                    inicio = pd.Timestamp(filtros['fecha_inicio'], tz='UTC')
+                    fin = pd.Timestamp(filtros['fecha_fin'], tz='UTC') + pd.Timedelta(hours=23, minutes=59)
+                    df_filtrado = st.session_state.datos[
+                        (st.session_state.datos["createdAt"] >= inicio) & 
+                        (st.session_state.datos["createdAt"] <= fin)
+                    ]
+                    mostrar_resultados_cliente(df_filtrado)
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
+        with tab2:
+            st.markdown("### 🔄 Refrescar Datos")
+            if st.button("🔄 Forzar actualización desde BD", type="primary"):
+                st.cache_data.clear()
+                st.rerun()
+
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 📊 Estado")
+        estado = "✅ Conectado" if st.session_state.bd_conectada else "❌ Desconectado"
+        st.markdown(f"**BD:** {estado}")
+        if st.session_state.datos is not None:
+            st.markdown(f"**Registros:** {len(st.session_state.datos):,}")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        st.error(f"❌ Error crítico: {str(e)}")
+        if st.button("🔄 Reiniciar"):
+            st.cache_data.clear()
+            st.rerun()
