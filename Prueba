@@ -1,14 +1,4 @@
-inicio_dt: 2025-04-30 00:00:00+00:00
-
-fin_dt : 2025-07-16 23:59:59+00:00
-
-mínimo en datos: 2025-04-30 10:04:32.998000+00:00
-
-máximo en datos: 2025-07-16 08:08:39.545000+00:00
-
-filas sin filtro: 3708
-
-filas con filtro: 3708
+❌ Error: invalid input for query argument $1: datetime.datetime(2025, 7, 13, 0, 0, tzi... (expected str, got datetime)
 
 
 
