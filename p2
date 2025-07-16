@@ -1,109 +1,69 @@
-def mostrar_analisis_conversaciones_feedback():
-    st.markdown("## 🔍 Análisis de Conversaciones por Feedback")
+def analizar_conversaciones_sin_feedback(df):
+    st.markdown("## 🔍 Análisis Completo de Conversaciones Sin Feedback")
 
-    if st.session_state.datos is None:
-        st.warning("⚠️ Primero debes conectar a la base de datos")
+    if "feedback" not in df.columns:
+        st.info("ℹ️ No hay datos de feedback disponibles")
         return
 
-    st.markdown('<div class="alerta-info">📊 Esta sección muestra conversaciones COMPLETAS filtradas solo por <strong>feedback</strong> y <strong>fecha</strong></div>', unsafe_allow_html=True)
+    sin_feedback = df[df["feedback"].isna()].copy()
+    if sin_feedback.empty:
+        st.markdown('<div class="alerta-exito">✅ <strong>¡Excelente!</strong> Todas las conversaciones tienen feedback.</div>', unsafe_allow_html=True)
+        return
 
-    # Filtros reducidos: solo fecha y tipo de feedback
-    col1, col2 = st.columns(2)
+    total_sin_feedback = len(sin_feedback)
+    conversaciones_afectadas = sin_feedback["conversation_id"].nunique() if "conversation_id" in sin_feedback.columns else 0
+    usuarios_afectados = sin_feedback["user_id"].nunique() if "user_id" in sin_feedback.columns else 0
 
-    with col1:
-        try:
-            fechas = pd.to_datetime(st.session_state.datos["createdAt"], errors='coerce').dropna()
-            fecha_min = fechas.min().date()
-            fecha_max = fechas.max().date()
-        except:
-            fecha_min = datetime.now().date() - timedelta(days=30)
-            fecha_max = datetime.now().date()
+    st.markdown(f'<div class="alerta-info">📋 <strong>{total_sin_feedback:,} mensajes sin feedback</strong> en <strong>{conversaciones_afectadas:,} conversaciones</strong> de <strong>{usuarios_afectados:,} usuarios</strong></div>', unsafe_allow_html=True)
 
-        fecha_inicio = st.date_input("Fecha Inicio", fecha_min, key="fecha_inicio_feedback")
-        fecha_fin = st.date_input("Fecha Fin", fecha_max, key="fecha_fin_feedback")
+    # Agrupar por conversación y mostrar desplegables estilo "Análisis por Feedback"
+    grupos = sin_feedback.groupby("conversation_id")
+    for conv_id, datos_conv in grupos:
+        titulo = datos_conv["conversation_title"].iloc[0] or "Sin título"
+        usuario = datos_conv["user_id"].iloc[0]
+        fecha_inicio = datos_conv["createdAt"].min()
+        fecha_fin = datos_conv["createdAt"].max()
+        duracion = fecha_fin - fecha_inicio
 
-    with col2:
-        if "feedback" in st.session_state.datos.columns:
-            opciones_feedback = list(st.session_state.datos["feedback"].dropna().unique()) + ["Sin feedback"]
-            tipos_feedback = st.multiselect("Tipo de Feedback", opciones_feedback, default=["positive", "negative"])
-        else:
-            tipos_feedback = []
+        st.markdown(f"""
+        <div class="contenedor-conversacion">
+            <div class="encabezado-conversacion">
+                <div class="info-conversacion">
+                    <div class="titulo-conversacion">🗣️ Conversación {conv_id}</div>
+                    <div class="meta-conversacion">📋 <strong>Título:</strong> {titulo}</div>
+                    <div class="meta-conversacion">👤 <strong>Usuario:</strong> {usuario}</div>
+                    <div class="meta-conversacion">📅 <strong>Duración:</strong> {duracion}</div>
+                </div>
+                <div class="etiqueta-conversacion">{len(datos_conv)} mensajes</div>
+            </div>
+        """, unsafe_allow_html=True)
 
-    # Configuración básica igual al análisis general
-    filtros = {
-        'fecha_inicio': fecha_inicio,
-        'fecha_fin': fecha_fin,
-        'feedback': tipos_feedback,
-        'mostrar_columnas': ["createdAt", "user_id", "role", "feedback", "content"],
-        'mostrar_sin_feedback': True,
-        'solo_completos': False
-    }
+        with st.expander(f"👁️ Ver conversación completa", expanded=False):
+            for idx, (_, msg) in enumerate(datos_conv.iterrows(), 1):
+                rol = msg.get("role", "N/A").lower()
+                contenido = msg.get("content", "[Sin contenido]").strip()
+                timestamp = pd.to_datetime(msg.get("createdAt", "")).strftime("%Y-%m-%d %H:%M:%S")
+                feedback = msg.get("feedback", "Sin feedback")
 
-    ejecutar = st.button("🚀 Ejecutar Análisis", type="primary", use_container_width=True)
+                clase_css = {
+                    "user": "mensaje-usuario",
+                    "assistant": "mensaje-asistente"
+                }.get(rol, "mensaje-sistema")
 
-    if ejecutar and tipos_feedback:
-        with st.spinner("📊 Procesando análisis por feedback..."):
-            try:
-                tiempo_inicio = datetime.now()
-                resultados = ejecutar_analisis_completo(st.session_state.config_bd, filtros)
-                tiempo_proceso = (datetime.now() - tiempo_inicio).total_seconds()
+                icono = {"user": "👤", "assistant": "🤖"}.get(rol, "⚙️")
 
-                st.session_state.resultados_feedback = resultados
-                st.markdown(f'<div class="alerta-exito">✅ ¡Completado! {len(resultados):,} registros en {tiempo_proceso:.2f}s</div>', unsafe_allow_html=True)
-
-            except Exception as e:
-                st.error(f"❌ Error al obtener datos: {e}")
-
-        if st.session_state.resultados_feedback is not None:
-            # Agrupar por conversación y mostrar desplegables como en "Análisis General"
-            df = st.session_state.resultados_feedback
-            if not df.empty:
-                for conv_id, datos_conv in df.groupby("conversation_id"):
-                    titulo = datos_conv["conversation_title"].iloc[0] or "Sin título"
-                    usuario = datos_conv["user_id"].iloc[0]
-                    fecha_inicio = datos_conv["createdAt"].min()
-                    fecha_fin = datos_conv["createdAt"].max()
-                    duracion = fecha_fin - fecha_inicio
-
-                    st.markdown(f"""
-                    <div class="contenedor-conversacion">
-                        <div class="encabezado-conversacion">
-                            <div class="info-conversacion">
-                                <div class="titulo-conversacion">🗣️ Conversación {conv_id}</div>
-                                <div class="meta-conversacion">📋 <strong>Título:</strong> {titulo}</div>
-                                <div class="meta-conversacion">👤 <strong>Usuario:</strong> {usuario}</div>
-                                <div class="meta-conversacion">📅 <strong>Duración:</strong> {duracion}</div>
-                            </div>
-                            <div class="etiqueta-conversacion">{len(datos_conv)} mensajes</div>
+                st.markdown(f"""
+                <div class="item-mensaje {clase_css}">
+                    <div class="encabezado-mensaje">
+                        <div class="rol-mensaje">
+                            <span>{icono}</span>
+                            <span><strong>Mensaje #{idx} - {rol.title()}</strong></span>
+                            <span class="tiempo-mensaje">🕐 {timestamp} | 📝 Feedback: {feedback}</span>
                         </div>
-                    """, unsafe_allow_html=True)
+                    </div>
+                    <div class="contenido-mensaje">{contenido}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-                    with st.expander(f"👁️ Ver conversación completa", expanded=False):
-                        for idx, (_, msg) in enumerate(datos_conv.iterrows(), 1):
-                            rol = msg.get("role", "N/A").lower()
-                            contenido = msg.get("content", "[Sin contenido]").strip()
-                            timestamp = pd.to_datetime(msg.get("createdAt", "")).strftime("%Y-%m-%d %H:%M:%S")
-                            feedback = msg.get("feedback", "Sin feedback")
-
-                            clase_css = {
-                                "user": "mensaje-usuario",
-                                "assistant": "mensaje-asistente"
-                            }.get(rol, "mensaje-sistema")
-
-                            icono = {"user": "👤", "assistant": "🤖"}.get(rol, "⚙️")
-
-                            st.markdown(f"""
-                            <div class="item-mensaje {clase_css}">
-                                <div class="encabezado-mensaje">
-                                    <div class="rol-mensaje">
-                                        <span>{icono}</span>
-                                        <span><strong>Mensaje #{idx} - {rol.title()}</strong></span>
-                                        <span class="tiempo-mensaje">🕐 {timestamp} | 📝 Feedback: {feedback}</span>
-                                    </div>
-                                </div>
-                                <div class="contenido-mensaje">{contenido}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    st.markdown("---")
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("---")
