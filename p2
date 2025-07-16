@@ -1,32 +1,7 @@
-results = await client.conn.fetch("""
-    SELECT 
-        m.*,
-        c.title AS conversation_title,
-        c.type AS conversation_type
-    FROM messages m
-    LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
-    ORDER BY m."createdAt" DESC
-""")
-
-
-consulta = """
-    SELECT 
-        m.*,
-        c.title AS conversation_title,
-        c.type AS conversation_type
-    FROM messages m
-    LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
-    ORDER BY m."createdAt" DESC
-"""
-
-
-consulta = f"""
-    SELECT 
-        m.*,
-        c.title AS conversation_title,
-        c.type AS conversation_type
-    FROM messages m
-    LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
-    {clausula_where}
-    ORDER BY m."createdAt" DESC
-"""
+st.write("🔍 DEBUG – Rango filtrado:")
+st.write("inicio_dt:", inicio_dt)
+st.write("fin_dt  :", fin_dt)
+st.write("mínimo en datos:", df["createdAt"].min())
+st.write("máximo en datos:", df["createdAt"].max())
+st.write("filas sin filtro:", len(df))
+st.write("filas con filtro:", len(df_filtrado))
