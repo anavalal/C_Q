@@ -1,16 +1,15 @@
-❌ Error crítico: module 'streamlit' has no attribute 'session_resultados'
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import asyncio
 import logging
 from datetime import datetime, timedelta
-import json
+import json  # Necesario para formatear mensajes
 
+# Asegúrate de que esta ruta sea correcta según tu estructura
 from batch.utilities.chat_history.postgresdbservice import PostgresConversationClient
 
-# Configuración básica
+# ==================== CONFIGURACIÓN  ====================
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ COLORES = {
     'advertencia': '#ff7f0e', 'info': '#17becf', 'secundario': '#7f7f7f'
 }
 
-# Funciones auxiliares
+# ==================== FUNCIONES CORE ====================
 @st.cache_data(ttl=600, show_spinner=False)
 def normalizar_fechas(serie_dt):
     if serie_dt.empty:
@@ -43,6 +42,7 @@ def ejecutar_async(corrutina):
         asyncio.set_event_loop(loop)
         return loop.run_until_complete(corrutina)
 
+# ==================== ESTILOS ====================
 def aplicar_estilos():
     st.markdown("""
     <style>
@@ -51,19 +51,25 @@ def aplicar_estilos():
     .tarjeta-metrica {background:white;padding:1.2rem;border-radius:8px;border-left:4px solid #1f77b4;margin:0.5rem 0;box-shadow:0 3px 10px rgba(0,0,0,0.1);transition:all 0.3s ease;}
     .tarjeta-metrica:hover {transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,0.15);}
     .numero-metrica {font-size:2rem;font-weight:bold;margin:0;color:#333;animation:countUp 0.8s ease-out;}
+    @keyframes countUp {from{opacity:0;transform:scale(0.5);}to{opacity:1;transform:scale(1);}}
     .etiqueta-metrica {color:#666;font-size:0.9rem;margin:0.3rem 0 0 0;}
     .caja-filtros {background:linear-gradient(145deg,#f8f9fa,#e9ecef);padding:1.5rem;border-radius:8px;margin:1rem 0;border:1px solid #e9ecef;transition:all 0.3s ease;}
     .caja-filtros:hover {transform:translateY(-1px);box-shadow:0 4px 15px rgba(0,0,0,0.1);}
     .alerta-exito {background:linear-gradient(135deg,#d4edda,#c3e6cb);border:1px solid #c3e6cb;color:#155724;padding:1rem;border-radius:6px;margin:1rem 0;animation:slideIn 0.5s ease-out;}
     .alerta-info {background:linear-gradient(135deg,#d1ecf1,#bee5eb);border:1px solid #bee5eb;color:#0c5460;padding:1rem;border-radius:6px;margin:1rem 0;animation:slideIn 0.5s ease-out;}
     .alerta-advertencia {background:linear-gradient(135deg,#fff3cd,#ffeaa7);border:1px solid #ffeaa7;color:#856404;padding:1rem;border-radius:6px;margin:1rem 0;animation:slideIn 0.5s ease-out;}
+    @keyframes slideIn {from{opacity:0;transform:translateX(-20px);}to{opacity:1;transform:translateX(0);}}
+
     .contenedor-conversacion {background:white;border-radius:10px;padding:1.5rem;margin:1rem 0;border-left:5px solid #d62728;box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:all 0.3s ease;animation:fadeInUp 0.5s ease-out;}
     .contenedor-conversacion:hover {transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,0.15);}
+    @keyframes fadeInUp {from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
     .encabezado-conversacion {display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:1rem;border-bottom:2px solid #f8f9fa;}
     .info-conversacion {flex:1;}
     .etiqueta-conversacion {background:#d62728;color:white;padding:0.5rem 1rem;border-radius:20px;font-weight:bold;font-size:0.9rem;animation:pulse 2s infinite;}
+    @keyframes pulse {0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
     .titulo-conversacion {font-size:1.3rem;font-weight:bold;color:#2c3e50;margin:0 0 0.5rem 0;}
     .meta-conversacion {color:#6c757d;font-size:0.9rem;margin:0.2rem 0;}
+
     .item-mensaje {background:#f8f9fa;border-radius:8px;padding:1rem;margin:0.8rem 0;border-left:4px solid #6c757d;transition:all 0.3s ease;}
     .item-mensaje:hover {background:#e9ecef;transform:translateX(8px);box-shadow:0 3px 12px rgba(0,0,0,0.1);}
     .mensaje-usuario {border-left-color:#2ca02c !important;background:linear-gradient(135deg,#f0fff4,#e6ffed) !important;}
@@ -74,6 +80,7 @@ def aplicar_estilos():
     .tiempo-mensaje {color:#6c757d;font-size:0.8rem;font-weight:normal;}
     .contenido-mensaje {background:rgba(255,255,255,0.8);padding:1rem;border-radius:6px;line-height:1.5;font-size:0.95rem;color:#2c3e50;border:1px solid rgba(0,0,0,0.1);transition:all 0.2s ease;}
     .contenido-mensaje:hover {background:rgba(255,255,255,0.95);}
+
     .info-tecnica-mensaje {margin-top:1rem;padding:0.8rem;background:rgba(0,0,0,0.03);border-radius:6px;border:1px dashed #dee2e6;transition:all 0.2s ease;}
     .info-tecnica-mensaje:hover {background:rgba(0,0,0,0.05);}
     .campo-tecnico {margin:0.5rem 0;padding:0.3rem 0;border-bottom:1px solid #e9ecef;font-size:0.85rem;transition:all 0.2s ease;}
@@ -81,12 +88,15 @@ def aplicar_estilos():
     .campo-tecnico:last-child {border-bottom:none;}
     .etiqueta-campo {font-weight:bold;color:#495057;margin-right:0.5rem;}
     .valor-campo {color:#6c757d;font-family:'Courier New',monospace;background:white;padding:0.2rem 0.4rem;border-radius:3px;border:1px solid #e9ecef;}
+
     .resumen-conversacion {background:linear-gradient(135deg,#e3f2fd,#bbdefb);padding:1rem;border-radius:8px;margin-bottom:1rem;border:1px solid #2196f3;animation:slideIn 0.5s ease-out;}
     .cuadricula-resumen {display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:0.5rem;}
     .item-resumen {background:white;padding:0.5rem;border-radius:4px;text-align:center;font-size:0.9rem;transition:all 0.2s ease;}
     .item-resumen:hover {transform:scale(1.02);box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+
     .contenedor-metricas {background:linear-gradient(135deg,#f8f9fa,#e9ecef);padding:2rem;border-radius:12px;margin:2rem 0;border:2px solid #dee2e6;animation:fadeIn 0.8s ease-out;}
     .titulo-seccion {font-size:1.5rem;font-weight:bold;color:#2c3e50;margin-bottom:1.5rem;text-align:center;animation:slideDown 0.6s ease-out;}
+    @keyframes slideDown {from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
     .grafico-contenedor {background:white;padding:1.5rem;border-radius:8px;margin:1rem 0;box-shadow:0 3px 10px rgba(0,0,0,0.1);transition:all 0.3s ease;}
     .grafico-contenedor:hover {transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.15);}
     .pastilla-estadistica {background:linear-gradient(45deg,#e3f2fd,#bbdefb);padding:0.4rem 0.8rem;border-radius:15px;margin:0.3rem;display:inline-block;font-size:0.85rem;transition:all 0.2s ease;}
@@ -107,7 +117,7 @@ def crear_metrica(titulo, valor, icono="📊", color=COLORES['primario']):
     </div>
     """
 
-# Inicialización
+# ==================== INICIALIZACIÓN ====================
 if 'bd_conectada' not in st.session_state:
     st.session_state.bd_conectada = False
 if 'datos' not in st.session_state:
@@ -115,7 +125,7 @@ if 'datos' not in st.session_state:
 if 'resultados' not in st.session_state:
     st.session_state.resultados = None
 
-# Conexión a la base de datos
+# ==================== CONFIGURACIÓN BD ====================
 def mostrar_conexion():
     with st.sidebar:
         st.markdown("### 🔗 Conexión a Base de Datos")
@@ -128,6 +138,7 @@ def mostrar_conexion():
             st.success("✅ Conectado")
     return usuario, contraseña, servidor, base_datos, conectar
 
+@st.cache_data(ttl=900, show_spinner=False)
 def cargar_datos(_usuario, _contraseña, _servidor, _base_datos):
     async def obtener():
         client = PostgresConversationClient(user=_usuario, password=_contraseña, host=_servidor, database=_base_datos)
@@ -142,11 +153,11 @@ def cargar_datos(_usuario, _contraseña, _servidor, _base_datos):
         await client.close()
         df = pd.DataFrame([dict(fila) for fila in resultados])
         if not df.empty and "createdAt" in df.columns:
-            df["createdAt"] = pd.to_datetime(df["createdAt"], errors='coerce', utc=True)
+            df["createdAt"] = normalizar_fechas(df["createdAt"])
         return df
     return ejecutar_async(obtener())
 
-# Filtros
+# ==================== SISTEMA DE FILTROS ====================
 def mostrar_filtros(df):
     st.markdown("## 🎛️ Panel de Filtros")
     if df.empty:
@@ -155,6 +166,7 @@ def mostrar_filtros(df):
 
     st.markdown(f'<div class="alerta-info">📊 <strong>Datos cargados:</strong> {len(df):,} registros totales disponibles</div>', unsafe_allow_html=True)
 
+    # Filtro temporal
     st.markdown('<div class="caja-filtros">', unsafe_allow_html=True)
     st.markdown("### 📅 Período de Análisis")
     try:
@@ -172,24 +184,19 @@ def mostrar_filtros(df):
         fecha_fin = st.date_input("Fecha de Fin", fecha_max, min_value=fecha_min, max_value=fecha_max)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # Aplicar filtro temporal
     try:
-        offset = pd.Timedelta(hours=2)
-        inicio_dt = (pd.Timestamp(fecha_inicio) + offset).tz_localize('UTC')
-        fin_dt = (pd.Timestamp(fecha_fin) + pd.Timedelta(hours=23, minutes=59, seconds=59) + offset).tz_localize('UTC')
-
-        st.session_state.df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
-        df_filtrado = st.session_state.df_filtrado
-
-        st.sidebar.caption(f"🔍 Filtrando: {inicio_dt.strftime('%Y-%m-%d %H:%M')} → {fin_dt.strftime('%Y-%m-%d %H:%M')} UTC")
-    except Exception as e:
-        st.error(f"Error filtrando fechas: {e}")
-        st.session_state.df_filtrado = df
-        df_filtrado = st.session_state.df_filtrado
+        inicio_dt = pd.Timestamp(fecha_inicio, tz='UTC')
+        fin_dt = pd.Timestamp(fecha_fin, tz='UTC') + pd.Timedelta(hours=23, minutes=59, seconds=59)
+        df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
+    except:
+        df_filtrado = df
 
     if df_filtrado.empty:
         st.warning("⚠️ Sin datos en el período seleccionado")
         return None, False
 
+    # Métricas del período
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(crear_metrica("Total Mensajes", f"{len(df_filtrado):,}", "💬"), unsafe_allow_html=True)
@@ -208,6 +215,7 @@ def mostrar_filtros(df):
         else:
             st.markdown(crear_metrica("Con Feedback", "N/A", "📝", COLORES['secundario']), unsafe_allow_html=True)
 
+    # Filtros adicionales
     filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin}
     with st.expander("🔧 Filtros Avanzados", expanded=False):
         col1, col2 = st.columns(2)
@@ -225,6 +233,7 @@ def mostrar_filtros(df):
             if "type" in df_filtrado.columns:
                 filtros['tipos'] = st.multiselect("Tipos de Mensaje", sorted(df_filtrado["type"].dropna().unique()))
 
+    # Configuración
     st.markdown('<div class="caja-filtros">', unsafe_allow_html=True)
     st.markdown("### ⚙️ Configuración del Análisis")
     col1, col2 = st.columns(2)
@@ -243,7 +252,8 @@ def mostrar_filtros(df):
     ejecutar = st.button("🚀 **Ejecutar Análisis Completo**", type="primary", use_container_width=True)
     return filtros, ejecutar
 
-# Consulta principal
+# ==================== CONSULTA PRINCIPAL ====================
+@st.cache_data(ttl=300, show_spinner=False)
 def ejecutar_analisis_completo(_config_bd, filtros):
     async def consulta():
         client = PostgresConversationClient(**_config_bd)
@@ -289,12 +299,13 @@ def ejecutar_analisis_completo(_config_bd, filtros):
         await client.close()
         df = pd.DataFrame([dict(fila) for fila in resultados])
         if not df.empty and "createdAt" in df.columns:
-            df["createdAt"] = pd.to_datetime(df["createdAt"], errors='coerce', utc=True)
+            df["createdAt"] = normalizar_fechas(df["createdAt"])
         return df
     return ejecutar_async(consulta())
 
-# Métricas específicas
+# ==================== MÉTRICAS ====================
 def crear_metricas_especificas(df):
+    """SOLO 2 métricas: Tipos de Feedback y Comparación de Usuarios"""
     if df.empty:
         return
 
@@ -303,6 +314,7 @@ def crear_metricas_especificas(df):
 
     col1, col2 = st.columns(2)
 
+    # MÉTRICA 1: Tipos de Feedback
     with col1:
         st.markdown('<div class="grafico-contenedor">', unsafe_allow_html=True)
         st.markdown('<div class="titulo-seccion">📊 Distribución de Tipos de Feedback</div>', unsafe_allow_html=True)
@@ -348,6 +360,7 @@ def crear_metricas_especificas(df):
 
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # MÉTRICA 2: Usuarios Con vs Sin Feedback
     with col2:
         st.markdown('<div class="grafico-contenedor">', unsafe_allow_html=True)
         st.markdown('<div class="titulo-seccion">👥 Comparación: Usuarios Con vs Sin Feedback</div>', unsafe_allow_html=True)
@@ -410,7 +423,7 @@ def crear_metricas_especificas(df):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Análisis de conversaciones sin feedback
+# ==================== ANÁLISIS SIN FEEDBACK COMPLETO ====================
 def analizar_conversaciones_sin_feedback(df):
     st.markdown("## 🔍 Análisis Completo de Conversaciones Sin Feedback")
 
@@ -525,8 +538,9 @@ def analizar_conversaciones_sin_feedback(df):
                         <div class="rol-mensaje">
                             <span>{icono}</span>
                             <span><strong>Mensaje #{indice_mensaje} - {nombre_rol}</strong></span>
-                            <span class="tiempo-mensaje">🕐 {timestamp} | 👤 {id_usuario}</div>
+                            <span style="font-size:0.8rem;color:#6c757d;">({tipo_mensaje})</span>
                         </div>
+                        <div class="tiempo-mensaje">🕐 {timestamp} | 👤 {id_usuario}</div>
                     </div>
                     <div class="contenido-mensaje">
                         <strong>💬 Contenido:</strong><br>
@@ -560,8 +574,14 @@ def analizar_conversaciones_sin_feedback(df):
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("---")
 
-# Formateador de mensajes
+# ==================== FORMATEADOR UNIVERSAL PARA MENSAJES TOOL ====================
 def formatear_mensaje_tool(contenido, metadata=None):
+    """
+    Formateador universal para mensajes Tool (cualquier vendor/documento)
+    Detecta automáticamente el tipo de contenido y lo organiza
+    """
+
+    # Limpiar el contenido
     if isinstance(contenido, dict):
         data = contenido
     else:
@@ -570,6 +590,7 @@ def formatear_mensaje_tool(contenido, metadata=None):
         except:
             data = str(contenido)
 
+    # Detectar tipo de contenido y formatear apropiadamente
     if isinstance(data, dict):
         return formatear_diccionario_tool(data)
     elif isinstance(data, list):
@@ -578,10 +599,13 @@ def formatear_mensaje_tool(contenido, metadata=None):
         return formatear_texto_tool(str(data))
 
 def formatear_diccionario_tool(data):
+    """Formatea diccionarios JSON de forma elegante"""
+
     html = """
     <div style="background: linear-gradient(135deg,#f8f9fa,#e9ecef); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #1f77b4; margin: 1rem 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
     """
 
+    # Título o nombre del documento
     titulo = data.get('title', '') or data.get('name', '') or 'Documento Técnico'
     html += f"""
     <div style="display: flex; align-items: center; margin-bottom: 1rem;">
@@ -590,6 +614,7 @@ def formatear_diccionario_tool(data):
     </div>
     """
 
+    # Organizar por secciones comunes
     secciones = {
         'contenido': 'Contenido Principal',
         'content': 'Contenido',
@@ -629,6 +654,7 @@ def formatear_diccionario_tool(data):
             elif key == 'citations' and isinstance(valor, list):
                 html += formatear_citations(valor)
             else:
+                # Contenido normal
                 if isinstance(valor, str) and len(valor) > 200:
                     html += f"""
                     <div style="margin: 0.5rem 0;">
@@ -649,6 +675,8 @@ def formatear_diccionario_tool(data):
     return html
 
 def formatear_lista_tool(data_list):
+    """Formatea listas de forma clara"""
+
     html = """
     <div style="background: linear-gradient(135deg,#fff8f0,#ffe6d6); padding: 1rem; border-radius: 8px; border-left: 4px solid #ff7f0e; margin: 1rem 0;">
         <h4 style="margin: 0 0 0.5rem 0; color: #2c3e50;">
@@ -673,6 +701,9 @@ def formatear_lista_tool(data_list):
     return html
 
 def formatear_texto_tool(texto):
+    """Formatea texto plano de forma elegante"""
+
+    # Detectar si es código o JSON en texto
     if texto.startswith('{') or texto.startswith('['):
         return f"""
         <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #6c757d;">
@@ -681,10 +712,12 @@ def formatear_texto_tool(texto):
         </div>
         """
 
+    # Detectar tablas en texto
     lines = texto.split('\n')
     if any('|' in line for line in lines[:5]):
         return formatear_tabla_texto(texto)
 
+    # Texto normal
     return f"""
     <div style="background: linear-gradient(135deg,#f0f8ff,#e6f3ff); padding: 1rem; border-radius: 8px; border-left: 4px solid #1f77b4;">
         <p style="margin: 0; white-space: pre-wrap; line-height: 1.5;">{texto[:800]}...</p>
@@ -692,6 +725,8 @@ def formatear_texto_tool(texto):
     """
 
 def formatear_metadata(metadata):
+    """Formatea metadatos de forma organizada"""
+
     html = """
     <div style="margin: 0.5rem 0;">
         <strong>Metadatos:</strong>
@@ -710,12 +745,14 @@ def formatear_metadata(metadata):
     return html
 
 def formatear_citations(citations):
+    """Formatea citas de forma clara"""
+
     html = """
     <div style="margin: 0.5rem 0;">
         <strong>Referencias:</strong>
     """
 
-    for citation in citations[:3]:
+    for citation in citations[:3]:  # Mostrar máximo 3
         titulo = citation.get('title', 'Documento sin título')
         url = citation.get('url', '')
 
@@ -733,6 +770,8 @@ def formatear_citations(citations):
     return html
 
 def formatear_tabla_texto(texto):
+    """Detecta y formatea tablas en texto"""
+
     lines = [line.strip() for line in texto.split('\n') if line.strip()]
     table_lines = [line for line in lines if '|' in line]
 
@@ -759,13 +798,15 @@ def formatear_tabla_texto(texto):
 
     return formatear_texto_tool(texto)
 
-# Análisis de conversaciones por feedback
+# ==================== NUEVO APARTADO: ANÁLISIS DE CONVERSACIONES POR FEEDBACK ====================
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_conversaciones_por_feedback(_config_bd, tipos_feedback, fecha_inicio, fecha_fin):
+    """Obtiene conversaciones COMPLETAS que tienen al menos un mensaje con el feedback especificado"""
     async def consulta():
         client = PostgresConversationClient(**_config_bd)
         await client.connect()
 
+        # Primero, encontrar las conversaciones que tienen el feedback especificado
         condiciones = []
         parametros = [f"{fecha_inicio} 00:00:00+00:00", f"{fecha_fin} 23:59:59+00:00"]
 
@@ -788,6 +829,7 @@ def obtener_conversaciones_por_feedback(_config_bd, tipos_feedback, fecha_inicio
         elif 'Sin feedback' in tipos_feedback:
             base_query += " AND m.feedback IS NULL"
 
+        # Obtener todas las conversaciones que coinciden
         conversaciones_query = f"""
         SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
         FROM messages m
@@ -801,11 +843,12 @@ def obtener_conversaciones_por_feedback(_config_bd, tipos_feedback, fecha_inicio
         await client.close()
         df = pd.DataFrame([dict(fila) for fila in resultados])
         if not df.empty and "createdAt" in df.columns:
-            df["createdAt"] = pd.to_datetime(df["createdAt"], errors='coerce', utc=True)
+            df["createdAt"] = normalizar_fechas(df["createdAt"])
         return df
     return ejecutar_async(consulta())
 
 def mostrar_analisis_conversaciones_feedback():
+    """Nueva sección dedicada a análisis de conversaciones por feedback"""
     st.markdown("## 🔍 Análisis de Conversaciones por Feedback")
 
     if st.session_state.datos is None:
@@ -814,6 +857,7 @@ def mostrar_analisis_conversaciones_feedback():
 
     st.markdown('<div class="alerta-info">📊 Esta sección muestra conversaciones COMPLETAS basadas en el feedback de sus mensajes</div>', unsafe_allow_html=True)
 
+    # Filtros específicos para esta sección
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -857,6 +901,7 @@ def mostrar_analisis_conversaciones_feedback():
                     st.markdown('<div class="alerta-advertencia">⚠️ No se encontraron conversaciones con los filtros aplicados</div>', unsafe_allow_html=True)
                     return
 
+                # Mostrar métricas
                 total_conversaciones = df_conversaciones["conversation_id"].nunique()
                 total_mensajes = len(df_conversaciones)
 
@@ -869,15 +914,18 @@ def mostrar_analisis_conversaciones_feedback():
                     usuarios = df_conversaciones["user_id"].nunique()
                     st.markdown(crear_metrica("Usuarios", f"{usuarios:,}", "👥", COLORES['advertencia']), unsafe_allow_html=True)
 
+                # Mostrar conversaciones con desplegables
                 grupos = df_conversaciones.groupby("conversation_id")
 
                 for conv_id, datos_conv in grupos:
+                    # Resumen de la conversación
                     titulo = datos_conv["conversation_title"].iloc[0] if pd.notna(datos_conv["conversation_title"].iloc[0]) else "Sin título"
                     usuario = datos_conv["user_id"].iloc[0]
                     fecha_inicio = datos_conv["createdAt"].min()
                     fecha_fin = datos_conv["createdAt"].max()
                     duracion = fecha_fin - fecha_inicio
 
+                    # Contar feedbacks
                     feedback_counts = datos_conv["feedback"].fillna("Sin feedback").value_counts()
                     feedback_resumen = ", ".join([f"{k}: {v}" for k, v in feedback_counts.items()])
 
@@ -895,6 +943,7 @@ def mostrar_analisis_conversaciones_feedback():
                         </div>
                     """, unsafe_allow_html=True)
 
+                    # Desplegable con todos los mensajes
                     with st.expander(f"👁️ Ver conversación completa ({len(datos_conv)} mensajes)", expanded=False):
                         for idx, (_, mensaje) in enumerate(datos_conv.iterrows(), 1):
                             rol = mensaje.get("role", "N/A").lower()
@@ -924,7 +973,7 @@ def mostrar_analisis_conversaciones_feedback():
             except Exception as e:
                 st.error(f"❌ Error en el análisis de conversaciones: {str(e)}")
 
-# Presentación de resultados
+# ==================== PRESENTACIÓN DE RESULTADOS ====================
 def mostrar_resultados_cliente(df, configuracion):
     st.markdown("## 📋 Resultados del Análisis")
 
@@ -940,8 +989,10 @@ def mostrar_resultados_cliente(df, configuracion):
         if excluidos > 0:
             st.info(f"ℹ️ Se excluyeron {excluidos:,} registros incompletos")
 
+    # SOLO las 2 métricas específicas solicitadas
     crear_metricas_especificas(df)
 
+    # Tabla de datos
     st.markdown("### 📊 Tabla de Datos Analizados")
     columnas_mostrar = configuracion.get('mostrar_columnas', [])
     if columnas_mostrar:
@@ -958,6 +1009,7 @@ def mostrar_resultados_cliente(df, configuracion):
     st.markdown(f'<div class="alerta-info">📊 Mostrando {len(df_visualizar):,} registros con {len(df_visualizar.columns)} columnas</div>', unsafe_allow_html=True)
     st.dataframe(df_visualizar, use_container_width=True, height=500)
 
+    # Exportación
     try:
         df_exportar = df.copy()
         for columna in df_exportar.columns:
@@ -982,23 +1034,16 @@ def mostrar_resultados_cliente(df, configuracion):
     except Exception as e:
         st.error(f"Error en exportación: {e}")
 
+    # Análisis sin feedback
     if configuracion.get('mostrar_sin_feedback', True):
         analizar_conversaciones_sin_feedback(df)
 
-# Menú lateral
+# ==================== MENÚ LATERAL CON NUEVA OPCIÓN ====================
 def mostrar_menu_lateral():
-    with st.sidebar:
-        if st.session_state.datos is not None and not st.session_state.datos.empty:
-            ultimo_mensaje = st.session_state.datos["createdAt"].max()
-            st.caption(f"📅 Último mensaje en BD: {ultimo_mensaje.strftime('%Y-%m-%d %H:%M')} UTC")
-
-    with st.sidebar:
-        st.markdown("**Última actualización:**")
-        st.markdown(f"`{st.session_state.last_refresh.strftime('%H:%M:%S')}`")
-
     with st.sidebar:
         st.markdown("### 🎯 Modo de Análisis")
 
+        # Radio button para seleccionar el modo
         modo_analisis = st.radio(
             "Selecciona el tipo de análisis:",
             ["Análisis General", "Análisis de Conversaciones por Feedback"],
@@ -1007,23 +1052,12 @@ def mostrar_menu_lateral():
 
         return modo_analisis
 
-# Aplicación principal
+# ==================== APLICACIÓN PRINCIPAL ====================
 def main():
-    if 'last_refresh' not in st.session_state:
-        st.session_state.last_refresh = datetime.now()
-
-    if st.sidebar.button("🔄 Refrescar Datos Ahora"):
-        st.cache_data.clear()
-        st.session_state.last_refresh = datetime.now()
-        st.rerun()
-
-    if (datetime.now() - st.session_state.last_refresh).seconds > 300:
-        st.cache_data.clear()
-        st.session_state.last_refresh = datetime.now()
-        st.rerun()
 
     aplicar_estilos()
 
+    # Encabezado dinámico sin mostrar usuario
     st.markdown(f"""
     <div class="encabezado-principal">
         <h1 style="margin: 0; font-size: 2.5rem;">📊 RAN AVAD Analytics Dashboard</h1>
@@ -1036,6 +1070,7 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
+    # Conexión BD
     usuario, contraseña, servidor, base_datos, conectar = mostrar_conexion()
 
     if conectar:
@@ -1049,57 +1084,16 @@ def main():
                 st.session_state.config_bd = {"user": usuario, "password": contraseña, "host": servidor, "database": base_datos}
                 st.session_state.bd_conectada = True
 
-                # Mensaje de depuración
-                st.write("Datos cargados (últimos 5 registros):", datos_completos[["user_id", "createdAt"]].head())
-
                 st.markdown(f'<div class="alerta-exito">✅ <strong>Conexión exitosa!</strong> Cargados {len(datos_completos):,} registros en {tiempo_carga:.2f}s</div>', unsafe_allow_html=True)
 
             except Exception as e:
                 st.markdown(f'<div class="alerta-advertencia">❌ <strong>Error:</strong> {str(e)}</div>', unsafe_allow_html=True)
                 st.session_state.bd_conectada = False
 
+    # NUEVO MENÚ LATERAL
     modo_analisis = mostrar_menu_lateral()
 
-    if st.session_state.bd_conectada:
-        with st.sidebar.expander("🔧 Admin - Renombrar user_id", expanded=False):
-            clave = st.text_input("Clave admin", type="password", key="clave_admin")
-            if clave == "avad2025":
-                try:
-                    userids = ejecutar_async(detectar_userids_no_legibles())
-                    if not userids:
-                        st.success("✅ Todos los user_id ya son legibles")
-                    else:
-                        st.info(f"📋 {len(userids)} user_id pendientes")
-                        tab1, tab2 = st.tabs(["Formulario", "Export / Import CSV"])
-                        with tab1:
-                            df_map = pd.DataFrame({"User_ID_actual": userids, "Nombre_Real": [""]*len(userids)})
-                            edited = st.data_editor(df_map, use_container_width=True, key="editor")
-                            if st.button("💾 Confirmar cambios"):
-                                mapeo = dict(zip(edited["User_ID_actual"], edited["Nombre_Real"]))
-                                mapeo = {k: v for k, v in mapeo.items() if str(v).strip()}
-                                if mapeo:
-                                    with st.spinner("Actualizando..."):
-                                        ejecutar_async(actualizar_user_ids(mapeo))
-                                        st.cache_data.clear()
-                                        st.success("✅ Actualizado. Recarga la página.")
-                                else:
-                                    st.warning("⚠️ Rellena al menos un nombre")
-                        with tab2:
-                            csv_plantilla = generar_csv_mapeo(userids)
-                            st.download_button("📥 Descargar plantilla CSV", csv_plantilla, "mapeo_user_id.csv", "text/csv")
-                            uploaded = st.file_uploader("Subir CSV actualizado", type="csv")
-                            if uploaded:
-                                mapeo = cargar_csv_mapeo(uploaded)
-                                if st.button("💾 Aplicar CSV"):
-                                    with st.spinner("Actualizando..."):
-                                        ejecutar_async(actualizar_user_ids(mapeo))
-                                        st.cache_data.clear()
-                                        st.success("✅ CSV aplicado. Recarga la página.")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-            elif clave:
-                st.error("❌ Clave incorrecta")
-
+    # Lógica según el modo seleccionado
     if st.session_state.datos is not None:
         if modo_analisis == "Análisis General":
             filtros, ejecutar = mostrar_filtros(st.session_state.datos)
@@ -1125,71 +1119,27 @@ def main():
                 if st.session_state.resultados is not None:
                     mostrar_resultados_cliente(st.session_state.resultados, st.session_state.configuracion)
 
-        else:
+        else:  # "Análisis de Conversaciones por Feedback"
             mostrar_analisis_conversaciones_feedback()
 
+    # Panel estado sin mostrar usuarios
     with st.sidebar:
         st.markdown("---")
         st.markdown("### 📊 Estado del Sistema")
         items_estado = [
-            (" {}: ".format("🕐 Hora"), datetime.now().strftime('%H:%M:%S')),
-            (" {}: ".format("🔗 BD"), "✅ Conectada" if st.session_state.bd_conectada else "❌ Desconectada"),
-            (" {}: ".format("📊 Datos"), "✅ {:,}".format(len(st.session_state.datos)) if st.session_state.datos is not None else "❌ Sin datos"),
-            (" {}: ".format("📋 Resultados"), "✅ {:,}".format(len(st.session_resultados)) if 'resultados' in st.session_state and st.session_state.resultados is not None else "❌ Sin análisis")
+            ("🕐 Hora", datetime.now().strftime('%H:%M:%S')),
+            ("🔗 BD", "✅ Conectada" if st.session_state.bd_conectada else "❌ Desconectada"),
+            ("📊 Datos", f"✅ {len(st.session_state.datos):,}" if st.session_state.datos is not None else "❌ Sin datos"),
+            ("📋 Resultados", f"✅ {len(st.session_state.resultados):,}" if st.session_state.resultados is not None else "❌ Sin análisis")
         ]
 
         for etiqueta, valor in items_estado:
-            st.markdown(f"**{etiqueta}** {valor}")
+            st.markdown(f"**{etiqueta}:** {valor}")
 
         if st.button("🔄 Actualizar Cache"):
             st.cache_data.clear()
             st.success("✅ Cache actualizada")
             st.rerun()
-
-async def detectar_userids_no_legibles():
-    client = PostgresConversationClient(**st.session_state.config_bd)
-    await client.connect()
-    rows = await client.conn.fetch("SELECT DISTINCT user_id FROM messages WHERE user_id IS NOT NULL")
-    await client.close()
-    return [
-        str(r["user_id"]) for r in rows
-        if (
-            " " not in str(r["user_id"])
-            or len(str(r["user_id"])) < 4
-            or str(r["user_id"]).count("-") >= 3
-            or str(r["user_id"]).isdigit()
-        )
-    ]
-
-async def actualizar_user_ids(user_map):
-    client = PostgresConversationClient(**st.session_state.config_bd)
-    await client.connect()
-    for old, new in user_map.items():
-        if new.strip():
-            await client.conn.execute(
-                "UPDATE messages SET user_id = $1 WHERE user_id = $2",
-                new.strip(), old
-            )
-    await client.close()
-
-async def actualizar_user_ids(user_map):
-    client = PostgresConversationClient(**st.session_state.config_bd)
-    await client.connect()
-    for old, new in user_map.items():
-        if new.strip():
-            await client.conn.execute(
-                "UPDATE messages SET user_id = $1 WHERE user_id = $2",
-                new.strip(), old
-            )
-    await client.close()
-
-def generar_csv_mapeo(userids):
-    df = pd.DataFrame({"User_ID": userids, "Nombre_Real": [""] * len(userids)})
-    return df.to_csv(index=False, encoding="utf-8-sig", sep=";")
-
-def cargar_csv_mapeo(uploaded_file):
-    df = pd.read_csv(uploaded_file, sep=";", encoding="utf-8-sig")
-    return dict(zip(df["User_ID"].astype(str), df["Nombre_Real"].astype(str)))
 
 if __name__ == "__main__":
     try:
