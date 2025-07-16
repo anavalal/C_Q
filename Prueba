@@ -1,22 +1,272 @@
-# Limpiar el WHERE para la subquery
-if condiciones:
-    condiciones_limpias = [c.replace('m.', '') for c in condiciones]
-    subquery_where = f"WHERE {' AND '.join(condiciones_limpias)}"
-else:
-    subquery_where = ""
+# ==================== NUEVO APARTADO: ANÁLISIS DE CONVERSACIONES POR FEEDBACK ====================
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_conversaciones_por_feedback(_config_bd, tipos_feedback, fecha_inicio, fecha_fin):
+    """Obtiene conversaciones COMPLETAS que tienen al menos un mensaje con el feedback especificado"""
+    async def consulta():
+        client = PostgresConversationClient(**_config_bd)
+        await client.connect()
+        
+        # Primero, encontrar las conversaciones que tienen el feedback especificado
+        condiciones = []
+        parametros = [f"{fecha_inicio} 00:00:00+00:00", f"{fecha_fin} 23:59:59+00:00"]
+        
+        base_query = """
+        SELECT DISTINCT m.conversation_id
+        FROM messages m
+        WHERE m."createdAt" BETWEEN $1 AND $2
+        """
+        
+        if tipos_feedback and 'Sin feedback' not in tipos_feedback:
+            marcadores = ', '.join([f'${i+3}' for i in range(len(tipos_feedback))])
+            base_query += f" AND m.feedback IN ({marcadores})"
+            parametros.extend(tipos_feedback)
+        elif 'Sin feedback' in tipos_feedback and len(tipos_feedback) > 1:
+            tipos_limpios = [t for t in tipos_feedback if t != 'Sin feedback']
+            if tipos_limpios:
+                marcadores = ', '.join([f'${i+3}' for i in range(len(tipos_limpios))])
+                base_query += f" AND (m.feedback IN ({marcadores}) OR m.feedback IS NULL)"
+                parametros.extend(tipos_limpios)
+        elif 'Sin feedback' in tipos_feedback:
+            base_query += " AND m.feedback IS NULL"
+        
+        # Obtener todas las conversaciones que coinciden
+        conversaciones_query = f"""
+        SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
+        FROM messages m
+        LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+        WHERE m.conversation_id IN ({base_query})
+        AND m."createdAt" BETWEEN $1 AND $2
+        ORDER BY m.conversation_id, m."createdAt"
+        """
+        
+        resultados = await client.conn.fetch(conversaciones_query, *parametros)
+        await client.close()
+        df = pd.DataFrame([dict(fila) for fila in resultados])
+        if not df.empty and "createdAt" in df.columns:
+            df["createdAt"] = normalizar_fechas(df["createdAt"])
+        return df
+    return ejecutar_async(consulta())
 
-consulta = f"""
-SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
-FROM messages m
-JOIN conversations c ON m.conversation_id = c.conversation_id
-WHERE m.conversation_id IN (
-    SELECT DISTINCT conversation_id 
-    FROM messages 
-    {subquery_where}
-)
-ORDER BY m."createdAt" DESC
-"""
+def mostrar_analisis_conversaciones_feedback():
+    """Nueva sección dedicada a análisis de conversaciones por feedback"""
+    st.markdown("## 🔍 Análisis de Conversaciones por Feedback")
+    
+    if st.session_state.datos is None:
+        st.warning("⚠️ Primero debes conectar a la base de datos")
+        return
+    
+    st.markdown('<div class="alerta-info">📊 Esta sección muestra conversaciones COMPLETAS basadas en el feedback de sus mensajes</div>', unsafe_allow_html=True)
+    
+    # Filtros específicos para esta sección
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        try:
+            fechas = pd.to_datetime(st.session_state.datos["createdAt"], errors='coerce').dropna()
+            fecha_min = fechas.min().date() if not fechas.empty else datetime.now().date() - timedelta(days=30)
+            fecha_max = fechas.max().date() if not fechas.empty else datetime.now().date()
+        except:
+            fecha_min = datetime.now().date() - timedelta(days=30)
+            fecha_max = datetime.now().date()
+        
+        fecha_inicio = st.date_input("Fecha Inicio", fecha_min, key="fecha_inicio_feedback")
+        fecha_fin = st.date_input("Fecha Fin", fecha_max, key="fecha_fin_feedback")
+    
+    with col2:
+        tipos_feedback = []
+        if "feedback" in st.session_state.datos.columns:
+            opciones_feedback = list(st.session_state.datos["feedback"].dropna().unique()) + ["Sin feedback"]
+            tipos_feedback = st.multiselect(
+                "Tipos de Feedback a buscar",
+                opciones_feedback,
+                default=["positive", "negative"],
+                key="tipos_feedback_especial"
+            )
+    
+    with col3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        analizar = st.button("🔍 Buscar Conversaciones", type="primary", use_container_width=True)
+    
+    if analizar and tipos_feedback:
+        with st.spinner("🔄 Buscando conversaciones completas..."):
+            try:
+                df_conversaciones = obtener_conversaciones_por_feedback(
+                    st.session_state.config_bd, 
+                    tipos_feedback, 
+                    fecha_inicio, 
+                    fecha_fin
+                )
+                
+                if df_conversaciones.empty:
+                    st.markdown('<div class="alerta-advertencia">⚠️ No se encontraron conversaciones con los filtros aplicados</div>', unsafe_allow_html=True)
+                    return
+                
+                # Mostrar métricas
+                total_conversaciones = df_conversaciones["conversation_id"].nunique()
+                total_mensajes = len(df_conversaciones)
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.markdown(crear_metrica("Conversaciones Encontradas", f"{total_conversaciones:,}", "🗣️", COLORES['primario']), unsafe_allow_html=True)
+                with col2:
+                    st.markdown(crear_metrica("Mensajes Totales", f"{total_mensajes:,}", "💬", COLORES['exito']), unsafe_allow_html=True)
+                with col3:
+                    usuarios = df_conversaciones["user_id"].nunique()
+                    st.markdown(crear_metrica("Usuarios", f"{usuarios:,}", "👥", COLORES['advertencia']), unsafe_allow_html=True)
+                
+                # Mostrar conversaciones con desplegables
+                grupos = df_conversaciones.groupby("conversation_id")
+                
+                for conv_id, datos_conv in grupos:
+                    # Resumen de la conversación
+                    titulo = datos_conv["conversation_title"].iloc[0] if pd.notna(datos_conv["conversation_title"].iloc[0]) else "Sin título"
+                    usuario = datos_conv["user_id"].iloc[0]
+                    fecha_inicio = datos_conv["createdAt"].min()
+                    fecha_fin = datos_conv["createdAt"].max()
+                    duracion = fecha_fin - fecha_inicio
+                    
+                    # Contar feedbacks
+                    feedback_counts = datos_conv["feedback"].fillna("Sin feedback").value_counts()
+                    feedback_resumen = ", ".join([f"{k}: {v}" for k, v in feedback_counts.items()])
+                    
+                    st.markdown(f"""
+                    <div class="contenedor-conversacion">
+                        <div class="encabezado-conversacion">
+                            <div class="info-conversacion">
+                                <div class="titulo-conversacion">🗣️ Conversación {conv_id}</div>
+                                <div class="meta-conversacion">📋 <strong>Título:</strong> {titulo}</div>
+                                <div class="meta-conversacion">👤 <strong>Usuario:</strong> {usuario}</div>
+                                <div class="meta-conversacion">📅 <strong>Duración:</strong> {duracion}</div>
+                                <div class="meta-conversacion">📝 <strong>Feedback:</strong> {feedback_resumen}</div>
+                            </div>
+                            <div class="etiqueta-conversacion">{len(datos_conv)} mensajes</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Desplegable con todos los mensajes
+                    with st.expander(f"👁️ Ver conversación completa ({len(datos_conv)} mensajes)", expanded=False):
+                        for idx, (_, mensaje) in enumerate(datos_conv.iterrows(), 1):
+                            rol = mensaje.get("role", "N/A").lower()
+                            contenido = mensaje.get("content", "[Sin contenido]").strip()
+                            timestamp = pd.to_datetime(mensaje.get("createdAt", "")).strftime("%Y-%m-%d %H:%M:%S")
+                            feedback = mensaje.get("feedback", "Sin feedback")
+                            
+                            clase_css = "mensaje-usuario" if rol == "user" else "mensaje-asistente" if rol == "assistant" else "mensaje-sistema"
+                            icono = "👤" if rol == "user" else "🤖" if rol == "assistant" else "⚙️"
+                            
+                            st.markdown(f"""
+                            <div class="item-mensaje {clase_css}">
+                                <div class="encabezado-mensaje">
+                                    <div class="rol-mensaje">
+                                        <span>{icono}</span>
+                                        <span><strong>Mensaje #{idx} - {rol.title()}</strong></span>
+                                        <span class="tiempo-mensaje">🕐 {timestamp} | 📝 Feedback: {feedback}</span>
+                                    </div>
+                                </div>
+                                <div class="contenido-mensaje">{contenido}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("---")
+                    
+            except Exception as e:
+                st.error(f"❌ Error en el análisis de conversaciones: {str(e)}")
 
+# ==================== MENÚ LATERAL CON NUEVA OPCIÓN ====================
+def mostrar_menu_lateral():
+    with st.sidebar:
+        st.markdown("### 🎯 Modo de Análisis")
+        
+        # Radio button para seleccionar el modo
+        modo_analisis = st.radio(
+            "Selecciona el tipo de análisis:",
+            ["Análisis General", "Análisis de Conversaciones por Feedback"],
+            index=0
+        )
+        
+        return modo_analisis
+
+# ==================== APLICACIÓN PRINCIPAL MODIFICADA ====================
+def main():
+    aplicar_estilos()
+
+    # Encabezado dinámico sin mostrar usuario
+    st.markdown(f"""
+    <div class="encabezado-principal">
+        <h1 style="margin: 0; font-size: 2.5rem;">📊 RAN AVAD Analytics Dashboard</h1>
+        <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 1.2rem;">
+            Métricas completas - WebApp
+        </p>
+        <p style="margin: 0.3rem 0 0 0; font-size: 0.9rem; opacity: 0.8;">
+            📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Conexión BD
+    usuario, contraseña, servidor, base_datos, conectar = mostrar_conexion()
+
+    if conectar:
+        with st.spinner("🔄 Conectando y cargando datos completos..."):
+            try:
+                tiempo_inicio = datetime.now()
+                datos_completos = cargar_datos(usuario, contraseña, servidor, base_datos)
+                tiempo_carga = (datetime.now() - tiempo_inicio).total_seconds()
+
+                st.session_state.datos = datos_completos
+                st.session_state.config_bd = {"user": usuario, "password": contraseña, "host": servidor, "database": base_datos}
+                st.session_state.bd_conectada = True
+
+                st.markdown(f'<div class="alerta-exito">✅ <strong>Conexión exitosa!</strong> Cargados {len(datos_completos):,} registros en {tiempo_carga:.2f}s</div>', unsafe_allow_html=True)
+
+            except Exception as e:
+                st.markdown(f'<div class="alerta-advertencia">❌ <strong>Error:</strong> {str(e)}</div>', unsafe_allow_html=True)
+                st.session_state.bd_conectada = False
+
+    # NUEVO MENÚ LATERAL
+    modo_analisis = mostrar_menu_lateral()
+
+    # Lógica según el modo seleccionado
+    if st.session_state.datos is not None:
+        if modo_analisis == "Análisis General":
+            filtros, ejecutar = mostrar_filtros(st.session_state.datos)
+            if ejecutar and filtros:
+                with st.spinner("📊 Procesando análisis..."):
+                    try:
+                        tiempo_inicio = datetime.now()
+                        resultados = ejecutar_analisis_completo(st.session_state.config_bd, filtros)
+                        tiempo_proceso = (datetime.now() - tiempo_inicio).total_seconds()
+
+                        st.session_state.resultados = resultados
+                        st.session_state.configuracion = {
+                            'mostrar_columnas': filtros.get('mostrar_columnas', []),
+                            'mostrar_sin_feedback': filtros.get('mostrar_sin_feedback', True),
+                            'solo_completos': filtros.get('solo_completos', False)
+                        }
+
+                        st.markdown(f'<div class="alerta-exito">🎉 <strong>¡Completado!</strong> {len(resultados):,} registros en {tiempo_proceso:.2f}s</div>', unsafe_allow_html=True)
+
+                    except Exception as e:
+                        st.markdown(f'<div class="alerta-advertencia">❌ <strong>Error:</strong> {str(e)}</div>', unsafe_allow_html=True)
+
+                if st.session_state.resultados is not None:
+                    mostrar_resultados_cliente(st.session_state.resultados, st.session_state.configuracion)
+        
+        else:  # "Análisis de Conversaciones por Feedback"
+            mostrar_analisis_conversaciones_feedback()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        st.error(f"❌ **Error crítico:** {str(e)}")
+        st.markdown("**🔧 Solución:** Recarga la página (F5)")
+        if st.button("🆘 Reiniciar"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.cache_data.clear()
+            st.rerun()
 
 
 
