@@ -73,9 +73,9 @@ def aplicar_estilos():
     .contenido-mensaje {background:rgba(255,255,255,0.8);padding:1rem;border-radius:6px;line-height:1.5;font-size:0.95rem;color:#2c3e50;border:1px solid rgba(0,0,0,0.1);transition:all 0.2s ease;}
     .contenido-mensaje:hover {background:rgba(255,255,255,0.95);}
     .info-tecnica-mensaje {margin-top:1rem;padding:0.8rem;background:rgba(0,0,0,0.03);border-radius:6px;border:1px dashed #dee2e6;transition:all 0.2s ease;}
-    .info-tecnica-mensaje:hover {background:rgba(0,0,0,0.05;}
+    .info-tecnica-mensaje:hover {background:rgba(0,0,0,0.05);}
     .campo-tecnico {margin:0.5rem 0;padding:0.3rem 0;border-bottom:1px solid #e9ecef;font-size:0.85rem;transition:all 0.2s ease;}
-    .campo-tecnico:hover {background:rgba(0,0,0,0.02;}
+    .campo-tecnico:hover {background:rgba(0,0,0,0.02);}
     .campo-tecnico:last-child {border-bottom:none;}
     .etiqueta-campo {font-weight:bold;color:#495057;margin-right:0.5rem;}
     .valor-campo {color:#6c757d;font-family:'Courier New',monospace;background:white;padding:0.2rem 0.4rem;border-radius:3px;border:1px solid #e9ecef;}
@@ -126,7 +126,6 @@ def mostrar_conexion():
             st.success("✅ Conectado")
     return usuario, contraseña, servidor, base_datos, conectar
 
-@st.cache_data(ttl=30, show_spinner=False)
 def cargar_datos(_usuario, _contraseña, _servidor, _base_datos):
     async def obtener():
         client = PostgresConversationClient(user=_usuario, password=_contraseña, host=_servidor, database=_base_datos)
@@ -243,7 +242,6 @@ def mostrar_filtros(df):
     return filtros, ejecutar
 
 # Consulta principal
-@st.cache_data(ttl=300, show_spinner=False)
 def ejecutar_analisis_completo(_config_bd, filtros):
     async def consulta():
         client = PostgresConversationClient(**_config_bd)
@@ -525,9 +523,8 @@ def analizar_conversaciones_sin_feedback(df):
                         <div class="rol-mensaje">
                             <span>{icono}</span>
                             <span><strong>Mensaje #{indice_mensaje} - {nombre_rol}</strong></span>
-                            <span style="font-size:0.8rem;color:#6c757d;">({tipo_mensaje})</span>
+                            <span class="tiempo-mensaje">🕐 {timestamp} | 👤 {id_usuario}</div>
                         </div>
-                        <div class="tiempo-mensaje">🕐 {timestamp} | 👤 {id_usuario}</div>
                     </div>
                     <div class="contenido-mensaje">
                         <strong>💬 Contenido:</strong><br>
@@ -1050,6 +1047,9 @@ def main():
                 st.session_state.config_bd = {"user": usuario, "password": contraseña, "host": servidor, "database": base_datos}
                 st.session_state.bd_conectada = True
 
+                # Mensaje de depuración
+                st.write("Datos cargados (últimos 5 registros):", datos_completos[["user_id", "createdAt"]].head())
+
                 st.markdown(f'<div class="alerta-exito">✅ <strong>Conexión exitosa!</strong> Cargados {len(datos_completos):,} registros en {tiempo_carga:.2f}s</div>', unsafe_allow_html=True)
 
             except Exception as e:
@@ -1133,7 +1133,7 @@ def main():
             (" {}: ".format("🕐 Hora"), datetime.now().strftime('%H:%M:%S')),
             (" {}: ".format("🔗 BD"), "✅ Conectada" if st.session_state.bd_conectada else "❌ Desconectada"),
             (" {}: ".format("📊 Datos"), "✅ {:,}".format(len(st.session_state.datos)) if st.session_state.datos is not None else "❌ Sin datos"),
-            (" {}: ".format("📋 Resultados"), "✅ {:,}".format(len(st.session_state.resultados)) if st.session_state.resultados is not None else "❌ Sin análisis")
+            (" {}: ".format("📋 Resultados"), "✅ {:,}".format(len(st.session_resultados)) if 'resultados' in st.session_state and st.session_state.resultados is not None else "❌ Sin análisis")
         ]
 
         for etiqueta, valor in items_estado:
