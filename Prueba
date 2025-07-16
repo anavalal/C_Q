@@ -1,3 +1,50 @@
+
+
+import asyncio
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
+from batch.utilities.chat_history.postgresdbservice import PostgresConversationClient
+
+# Configuración
+OUTPUT_PATH = r"C:\Users\avallsal\OneDrive - Capgemini\Desktop\TELEFÓNICA\reportes_RAN\RAN_AVAD_Completo_{}.xlsx".format(
+    datetime.now().strftime("%Y%m%d_%H%M%S")
+)
+
+# Conexión
+CONFIG = {
+    "user": "usravad",
+    "password": "P@w0Rd1.2@25",
+    "host": "teepq02s-euwepc-teradpgsql.postgres.database.azure.com",
+    "database": "avad_pre"
+}
+
+# Extraer datos
+async def extraer():
+    client = PostgresConversationClient(**CONFIG)
+    await client.connect()
+    results = await client.conn.fetch("""
+        SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
+        FROM messages m
+        LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+        ORDER BY m."createdAt" DESC
+    """)
+    await client.close()
+    return pd.DataFrame([dict(row) for row in results])
+
+# Ejecutar y guardar
+df = asyncio.run(extraer())
+df.to_excel(OUTPUT_PATH, index=False)
+
+print(f"✅ Guardado en: {OUTPUT_PATH}")
+print(f"📊 Registros: {len(df)}")
+print(f"📋 Columnas: {len(df.columns)}")
+
+
+
+
+
+
 C:\Users\avallsal\OneDrive - Capgemini\Desktop\TELEFÓNICA\reportes_RAN
 
 import streamlit as st
