@@ -1,3 +1,45 @@
+# Aplicar filtro temporal
+try:
+    inicio_dt = pd.Timestamp(fecha_inicio, tz='UTC')
+    fin_dt = pd.Timestamp(fecha_fin, tz='UTC') + pd.Timedelta(hours=23, minutes=59, seconds=59)
+    st.session_state.df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
+    df_filtrado = st.session_state.df_filtrado
+except:
+    st.session_state.df_filtrado = df
+    df_filtrado = st.session_state.df_filtrado
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def mostrar_filtros(df):
     st.markdown("## 🎛️ Panel de Filtros")
     if df.empty:
