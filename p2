@@ -1,3 +1,98 @@
+def mostrar_filtros(df):
+    st.markdown("## 🎛️ Panel de Filtros")
+    if df.empty:
+        st.warning("⚠️ No hay datos disponibles")
+        return None, False
+
+    st.markdown(f'<div class="alerta-info">📊 <strong>Datos cargados:</strong> {len(df):,} registros totales disponibles</div>', unsafe_allow_html=True)
+
+    # Filtro temporal
+    st.markdown('<div class="caja-filtros">', unsafe_allow_html=True)
+    st.markdown("### 📅 Período de Análisis")
+    try:
+        fechas = pd.to_datetime(df["createdAt"], errors='coerce').dropna()
+        fecha_min = fechas.min().date() if not fechas.empty else datetime.now().date() - timedelta(days=30)
+        fecha_max = fechas.max().date() if not fechas.empty else datetime.now().date()
+    except:
+        fecha_min = datetime.now().date() - timedelta(days=30)
+        fecha_max = datetime.now().date()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        fecha_inicio = st.date_input("Fecha de Inicio", fecha_min, min_value=fecha_min, max_value=fecha_max)
+    with col2:
+        fecha_fin = st.date_input("Fecha de Fin", fecha_max, min_value=fecha_min, max_value=fecha_max)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Aplicar filtro temporal
+    try:
+        inicio_dt = pd.Timestamp(fecha_inicio, tz='UTC')
+        fin_dt = pd.Timestamp(fecha_fin, tz='UTC') + pd.Timedelta(hours=23, minutes=59, seconds=59)
+        df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
+    except:
+        df_filtrado = df
+
+    if df_filtrado.empty:
+        st.warning("⚠️ Sin datos en el período seleccionado")
+        return None, False
+
+    # Métricas del período
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(crear_metrica("Total Mensajes", f"{len(df_filtrado):,}", "💬"), unsafe_allow_html=True)
+    with col2:
+        usuarios = df_filtrado["user_id"].nunique() if "user_id" in df_filtrado.columns else 0
+        st.markdown(crear_metrica("Usuarios Únicos", f"{usuarios:,}", "👥", COLORES['exito']), unsafe_allow_html=True)
+    with col3:
+        conversaciones = df_filtrado["conversation_id"].nunique() if "conversation_id" in df_filtrado.columns else 0
+        st.markdown(crear_metrica("Conversaciones", f"{conversaciones:,}", "🗣️", COLORES['advertencia']), unsafe_allow_html=True)
+    with col4:
+        if "feedback" in df_filtrado.columns:
+            con_feedback = df_filtrado["feedback"].notna().sum()
+            porc_feedback = (con_feedback / len(df_filtrado) * 100) if len(df_filtrado) > 0 else 0
+            color = COLORES['exito'] if porc_feedback >= 70 else COLORES['advertencia'] if porc_feedback >= 40 else COLORES['peligro']
+            st.markdown(crear_metrica("Con Feedback", f"{porc_feedback:.1f}%", "📝", color), unsafe_allow_html=True)
+        else:
+            st.markdown(crear_metrica("Con Feedback", "N/A", "📝", COLORES['secundario']), unsafe_allow_html=True)
+
+    # Filtros adicionales
+    filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin}
+    with st.expander("🔧 Filtros Avanzados", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**👥 Filtros de Usuario y Rol**")
+            if "user_id" in df_filtrado.columns:
+                filtros['usuarios'] = st.multiselect("Seleccionar Usuarios", sorted(df_filtrado["user_id"].dropna().unique()))
+            if "role" in df_filtrado.columns:
+                filtros['roles'] = st.multiselect("Seleccionar Roles", sorted(df_filtrado["role"].dropna().unique()))
+        with col2:
+            st.markdown("**🗣️ Filtros de Interacción**")
+            if "feedback" in df_filtrado.columns:
+                opciones_feedback = list(df_filtrado["feedback"].dropna().unique()) + ["Sin feedback"]
+                filtros['feedback'] = st.multiselect("Tipo de Feedback", opciones_feedback)
+            if "type" in df_filtrado.columns:
+                filtros['tipos'] = st.multiselect("Tipos de Mensaje", sorted(df_filtrado["type"].dropna().unique()))
+
+    # Configuración
+    st.markdown('<div class="caja-filtros">', unsafe_allow_html=True)
+    st.markdown("### ⚙️ Configuración del Análisis")
+    col1, col2 = st.columns(2)
+    with col1:
+        todas_columnas = ["id", "createdAt", "updatedAt", "user_id", "conversation_id", "role", "type",
+                         "content", "feedback", "feedback_content", "expected_response",
+                         "expected_documents", "function_call", "question", "llm_filters",
+                         "source_documents", "conversation_title", "conversation_type"]
+        filtros['mostrar_columnas'] = st.multiselect("Columnas a Mostrar", todas_columnas,
+                                                    default=["createdAt", "user_id", "role", "feedback", "content"])
+    with col2:
+        filtros['mostrar_sin_feedback'] = st.checkbox("Incluir Análisis Sin Feedback", value=True)
+        filtros['solo_completos'] = st.checkbox("Solo Registros Completos")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    ejecutar = st.button("🚀 **Ejecutar Análisis Completo**", type="primary", use_container_width=True)
+    return filtros, ejecutar
+
+-----------------------
 def main():
     # Auto-refresco cada 5 minutos (opcional)
     if 'last_refresh' not in st.session_state:
