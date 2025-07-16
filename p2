@@ -1,14 +1,35 @@
-from datetime import datetime, time, timezone
+❌ El error concreto
+En la función ejecutar_analisis_completo(...) pasabas objetos datetime a la consulta SQL:
+Python
+Copy
 
-if filtros.get('fecha_inicio') and filtros.get('fecha_fin'):
-    inicio_dt = datetime.combine(filtros['fecha_inicio'], time.min, tzinfo=timezone.utc).isoformat()
-    fin_dt    = datetime.combine(filtros['fecha_fin'],   time.max, tzinfo=timezone.utc).isoformat()
-    condiciones.append('m."createdAt" BETWEEN $1 AND $2')
-    parametros.extend([inicio_dt, fin_dt])
+parametros.extend([datetime(2025, 7, 16, 0, 0, tzinfo=timezone.utc), ...])
 
+asyncpg rechazó ese tipo y lanzó:
+❌ Error: invalid input for query argument $1: datetime.datetime(...) (expected str, got datetime)
+🔒 Consecuencia inmediata
 
+    La consulta no se ejecutaba → devolvía 0 filas.
+    Por tanto:
+        No salía ningún mensaje.
+        Y tampoco el campo user_id (aunque estuviera bien en la BD).
 
+✅ Solución aplicada
+Convertir a string ISO antes de enviar:
+Python
+Copy
 
+parametros.extend([datetime(...).isoformat(), datetime(...).isoformat()])
+
+✅ Resultado
+
+    La consulta sí se ejecuta.
+    Devuelve los mensajes.
+    Y con ellos el user_id (ya con el nombre).
+
+🔍 Síntesis
+
+    El parámetro datetime rompía la query → 0 filas → 0 mensajes → 0 user_id visible
 
 
 
