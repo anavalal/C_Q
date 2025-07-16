@@ -1,61 +1,180 @@
-❌ El error concreto
-En la función ejecutar_analisis_completo(...) pasabas objetos datetime a la consulta SQL:
-Python
-Copy
+@st.cache_data(ttl=300, show_spinner=False)
+def ejecutar_analisis_completo(_config_bd, filtros):
+    async def consulta():
+        client = PostgresConversationClient(**_config_bd)
+        await client.connect()
+        condiciones, parametros = [], []
 
-parametros.extend([datetime(2025, 7, 16, 0, 0, tzinfo=timezone.utc), ...])
+        if filtros.get('fecha_inicio') and filtros.get('fecha_fin'):
+            # CORRECCIÓN: Convertir a string ISO antes de enviar
+            inicio_str = f"{filtros['fecha_inicio']} 00:00:00+00:00"
+            fin_str = f"{filtros['fecha_fin']} 23:59:59+00:00"
+            condiciones.append('m."createdAt" BETWEEN $1 AND $2')
+            parametros.extend([inicio_str, fin_str])
 
-asyncpg rechazó ese tipo y lanzó:
-❌ Error: invalid input for query argument $1: datetime.datetime(...) (expected str, got datetime)
-🔒 Consecuencia inmediata
+        mapeo_filtros = {'usuarios': 'm.user_id', 'roles': 'm.role', 'tipos': 'm.type'}
+        param_offset = len(parametros) + 1
+        
+        for clave, campo in mapeo_filtros.items():
+            if filtros.get(clave):
+                marcadores = ', '.join([f'${param_offset+i}' for i in range(len(filtros[clave]))])
+                condiciones.append(f'{campo} IN ({marcadores})')
+                parametros.extend(filtros[clave])
+                param_offset += len(filtros[clave])
 
-    La consulta no se ejecutaba → devolvía 0 filas.
-    Por tanto:
-        No salía ningún mensaje.
-        Y tampoco el campo user_id (aunque estuviera bien en la BD).
+        if filtros.get('feedback'):
+            valores_fb = filtros['feedback']
+            if 'Sin feedback' in valores_fb:
+                valores_limpios = [v for v in valores_fb if v != 'Sin feedback']
+                if valores_limpios:
+                    marcadores = ', '.join([f'${param_offset+i}' for i in range(len(valores_limpios))])
+                    condiciones.append(f'(m.feedback IN ({marcadores}) OR m.feedback IS NULL)')
+                    parametros.extend(valores_limpios)
+                else:
+                    condiciones.append('m.feedback IS NULL')
+            else:
+                marcadores = ', '.join([f'${param_offset+i}' for i in range(len(valores_fb))])
+                condiciones.append(f'm.feedback IN ({marcadores})')
+                parametros.extend(valores_fb)
 
-✅ Solución aplicada
-Convertir a string ISO antes de enviar:
-Python
-Copy
+        clausula_where = f"WHERE {' AND '.join(condiciones)}" if condiciones else ""
+        consulta = f"""
+            SELECT
+                m.*,
+                c.title AS conversation_title,
+                c.type AS conversation_type
+            FROM messages m
+            LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+            {clausula_where}
+            ORDER BY m."createdAt" ASC
+        """
 
-parametros.extend([datetime(...).isoformat(), datetime(...).isoformat()])
-
-✅ Resultado
-
-    La consulta sí se ejecuta.
-    Devuelve los mensajes.
-    Y con ellos el user_id (ya con el nombre).
-
-🔍 Síntesis
-
-    El parámetro datetime rompía la query → 0 filas → 0 mensajes → 0 user_id visible
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 🔍 DEBUG: últimos 10 registros filtrados
-st.write("🔍 Últimos 10 registros filtrados:")
-st.dataframe(df.tail(10)[["createdAt", "user_id", "content"]])
+        try:
+            resultados = await client.conn.fetch(consulta, *parametros)
+            await client.close()
+            df = pd.DataFrame([dict(fila) for fila in resultados])
+            if not df.empty and "createdAt" in df.columns:
+                df["createdAt"] = normalizar_fechas(df["createdAt"])
+            return df
+        except Exception as e:
+            logger.error(f"Error en consulta: {e}")
+            await client.close()
+            raise e
+            
+    return ejecutar_async(consulta())
 
 
 
 
 
 
-st.write("🔍 DEBUG – Rango filtrado:")
-st.write("inicio_dt:", inicio_dt)
-st.write("fin_dt  :", fin_dt)
-st.write("mínimo en datos:", df["createdAt"].min())
-st.write("máximo en datos:", df["createdAt"].max())
-st.write("filas sin filtro:", len(df))
-st.write("filas con filtro:", len(df_filtrado))
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_conversaciones_por_feedback(_config_bd, tipos_feedback, fecha_inicio, fecha_fin):
+    """Obtiene conversaciones COMPLETAS que tienen al menos un mensaje con el feedback especificado"""
+    async def consulta():
+        client = PostgresConversationClient(**_config_bd)
+        await client.connect()
+
+        try:
+            # CORRECCIÓN: Usar strings ISO para las fechas
+            fecha_inicio_str = f"{fecha_inicio} 00:00:00+00:00"
+            fecha_fin_str = f"{fecha_fin} 23:59:59+00:00"
+            
+            parametros = [fecha_inicio_str, fecha_fin_str]
+            param_offset = 3
+
+            # Construir condición de feedback
+            feedback_cond = ""
+            if tipos_feedback and 'Sin feedback' not in tipos_feedback:
+                marcadores = ', '.join([f'${param_offset+i}' for i in range(len(tipos_feedback))])
+                feedback_cond = f" AND m.feedback IN ({marcadores})"
+                parametros.extend(tipos_feedback)
+            elif 'Sin feedback' in tipos_feedback and len(tipos_feedback) > 1:
+                tipos_limpios = [t for t in tipos_feedback if t != 'Sin feedback']
+                if tipos_limpios:
+                    marcadores = ', '.join([f'${param_offset+i}' for i in range(len(tipos_limpios))])
+                    feedback_cond = f" AND (m.feedback IN ({marcadores}) OR m.feedback IS NULL)"
+                    parametros.extend(tipos_limpios)
+            elif 'Sin feedback' in tipos_feedback and len(tipos_feedback) == 1:
+                feedback_cond = " AND m.feedback IS NULL"
+
+            # Consulta corregida
+            consulta = f"""
+                SELECT 
+                    m.*, 
+                    c.title AS conversation_title, 
+                    c.type AS conversation_type
+                FROM messages m
+                LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+                WHERE m.conversation_id IN (
+                    SELECT DISTINCT conversation_id 
+                    FROM messages 
+                    WHERE "createdAt" BETWEEN $1 AND $2 {feedback_cond}
+                )
+                AND m."createdAt" BETWEEN $1 AND $2
+                ORDER BY m.conversation_id, m."createdAt" ASC
+            """
+
+            resultados = await client.conn.fetch(consulta, *parametros)
+            await client.close()
+            
+            df = pd.DataFrame([dict(fila) for fila in resultados])
+            if not df.empty and "createdAt" in df.columns:
+                df["createdAt"] = normalizar_fechas(df["createdAt"])
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error en consulta de conversaciones por feedback: {e}")
+            await client.close()
+            raise e
+            
+    return ejecutar_async(consulta())
+
+
+
+
+
+def analizar_conversaciones_sin_feedback(df):
+    st.markdown("## 🔍 Análisis Completo de Conversaciones Sin Feedback")
+
+    if "feedback" not in df.columns:
+        st.info("ℹ️ No hay datos de feedback disponibles")
+        return
+
+    sin_feedback = df[df["feedback"].isna()].copy()
+    if sin_feedback.empty:
+        st.markdown('<div class="alerta-exito">✅ <strong>¡Excelente!</strong> Todas las conversaciones tienen feedback.</div>', unsafe_allow_html=True)
+        return
+
+    # CORRECCIÓN: Ordenar por fecha para que los mensajes aparezcan en orden cronológico
+    sin_feedback = sin_feedback.sort_values("createdAt")
+    
+    total_sin_feedback = len(sin_feedback)
+    conversaciones_afectadas = sin_feedback["conversation_id"].nunique() if "conversation_id" in sin_feedback.columns else 0
+    usuarios_afectados = sin_feedback["user_id"].nunique() if "user_id" in sin_feedback.columns else 0
+
+    st.markdown(f'<div class="alerta-info">📋 <strong>{total_sin_feedback:,} mensajes sin feedback</strong> en <strong>{conversaciones_afectadas:,} conversaciones</strong> de <strong>{usuarios_afectados:,} usuarios</strong></div>', unsafe_allow_html=True)
+
+    # CORRECCIÓN: Agrupar y ordenar correctamente
+    grupos_conversacion = sin_feedback.groupby("conversation_id")
+    
+    stats_conversaciones = sin_feedback.groupby("conversation_id").agg({
+        "id": "count", 
+        "user_id": "first", 
+        "conversation_title": "first",
+        "createdAt": ["min", "max"], 
+        "role": lambda x: list(x.unique()),
+        "type": lambda x: list(x.unique())
+    }).round(2)
+
+    stats_conversaciones.columns = ["cantidad_mensajes", "id_usuario", "titulo", "tiempo_inicio", "tiempo_fin", "roles", "tipos"]
+    stats_conversaciones = stats_conversaciones.sort_values("cantidad_mensajes", ascending=False)
+
+    # ... resto de la función permanece igual ...
+
+
+
+
+
+
+
