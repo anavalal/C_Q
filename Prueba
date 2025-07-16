@@ -138,7 +138,7 @@ def mostrar_conexion():
             st.success("✅ Conectado")
     return usuario, contraseña, servidor, base_datos, conectar
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)  # Refresco cada 30 segundos
 def cargar_datos(_usuario, _contraseña, _servidor, _base_datos):
     async def obtener():
         client = PostgresConversationClient(user=_usuario, password=_contraseña, host=_servidor, database=_base_datos)
@@ -188,9 +188,12 @@ def mostrar_filtros(df):
     try:
         inicio_dt = pd.Timestamp(fecha_inicio, tz='UTC')
         fin_dt = pd.Timestamp(fecha_fin, tz='UTC') + pd.Timedelta(hours=23, minutes=59, seconds=59)
-        df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
+        st.session_state.df_filtrado = df[(df["createdAt"] >= inicio_dt) & (df["createdAt"] <= fin_dt)]
+        df_filtrado = st.session_state.df_filtrado
     except:
-        df_filtrado = df
+        st.session_state.df_filtrado = df
+        df_filtrado = st.session_state.df_filtrado
+
 
     if df_filtrado.empty:
         st.warning("⚠️ Sin datos en el período seleccionado")
@@ -1041,6 +1044,10 @@ def mostrar_resultados_cliente(df, configuracion):
 # ==================== MENÚ LATERAL CON NUEVA OPCIÓN ====================
 def mostrar_menu_lateral():
     with st.sidebar:
+        st.markdown("**Última actualización:**")
+        st.markdown(f"`{st.session_state.last_refresh.strftime('%H:%M:%S')}`")
+
+    with st.sidebar:
         st.markdown("### 🎯 Modo de Análisis")
 
         # Radio button para seleccionar el modo
@@ -1054,6 +1061,20 @@ def mostrar_menu_lateral():
 
 # ==================== APLICACIÓN PRINCIPAL ====================
 def main():
+        # Auto-refresco cada 5 minutos (opcional)
+    if 'last_refresh' not in st.session_state:
+        st.session_state.last_refresh = datetime.now()
+
+    if st.sidebar.button("🔄 Refrescar Datos Ahora"):
+        st.cache_data.clear()
+        st.session_state.last_refresh = datetime.now()
+        st.rerun()
+
+    # Refresco automático cada 5 minutos
+    if (datetime.now() - st.session_state.last_refresh).seconds > 300:
+        st.cache_data.clear()
+        st.session_state.last_refresh = datetime.now()
+        st.rerun()
     aplicar_estilos()
 
     # Encabezado dinámico sin mostrar usuario
