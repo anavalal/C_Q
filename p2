@@ -1,3 +1,12 @@
+# 🔍 DEBUG: últimos 10 registros filtrados
+st.write("🔍 Últimos 10 registros filtrados:")
+st.dataframe(df.tail(10)[["createdAt", "user_id", "content"]])
+
+
+
+
+
+
 st.write("🔍 DEBUG – Rango filtrado:")
 st.write("inicio_dt:", inicio_dt)
 st.write("fin_dt  :", fin_dt)
