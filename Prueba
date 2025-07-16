@@ -1,3 +1,33 @@
+me va a pregutnar el gestor de rpyecto para darme proyecot que he hecho hata ahora, yo he hecho cosas como crear paginas de streamlit para extraer la informacion del una gran base de datos de postgres que solo se conectaba via vpn, pero dobre todo estoy muy enfocad en servicios de azure, y en los nuevos apartados de agentes que es la nueva incorporacion que ha puesto ahora microsoft en azure ai. ademas he trabajado mucho con conexiones azure mediante scripts y he ayudado mucho a carlos en el proyecto RAN, sobre todo a mejorar las respuestas que proporcionaba el usuario y luego ya me he adentrado un poco mas y he analizado y mpodificado consultas, con las creaciones de yaml conectadas a ello etc. DILO TODO MEJOR PARA CUANDO ME PREGUNTE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
