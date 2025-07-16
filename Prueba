@@ -1,5 +1,236 @@
-me va a pregutnar el gestor de rpyecto para darme proyecot que he hecho hata ahora, yo he hecho cosas como crear paginas de streamlit para extraer la informacion del una gran base de datos de postgres que solo se conectaba via vpn, pero dobre todo estoy muy enfocad en servicios de azure, y en los nuevos apartados de agentes que es la nueva incorporacion que ha puesto ahora microsoft en azure ai. ademas he trabajado mucho con conexiones azure mediante scripts y he ayudado mucho a carlos en el proyecto RAN, sobre todo a mejorar las respuestas que proporcionaba el usuario y luego ya me he adentrado un poco mas y he analizado y mpodificado consultas, con las creaciones de yaml conectadas a ello etc. DILO TODO MEJOR PARA CUANDO ME PREGUNTE
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import asyncio
+import logging
+import json
+from datetime import datetime, timedelta
+from batch.utilities.chat_history.postgresdbservice import PostgresConversationClient
 
+# ==================== CONFIGURACIÓN  ====================
+logging.basicConfig(level=logging.ERROR)
+st.set_page_config(
+    page_title="RAN AVAD Analytics Dashboard",
+    page_icon="💬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+COLORES = {
+    'primario': '#1f77b4', 'exito': '#2ca02c', 'peligro': '#d62728',
+    'advertencia': '#ff7f0e', 'info': '#17becf', 'secundario': '#7f7f7f'
+}
+
+# ==================== FUNCIONES CORE ====================
+@st.cache_data(ttl=600, show_spinner=False)
+def normalizar_fechas(serie_dt):
+    if serie_dt.empty:
+        return serie_dt
+    return pd.to_datetime(serie_dt, errors='coerce', utc=True)
+
+def ejecutar_async(corrutina):
+    try:
+        return asyncio.get_event_loop().run_until_complete(corrutina)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(corrutina)
+
+# ==================== ESTILOS UNIFICADOS ====================
+def aplicar_estilos():
+    st.markdown("""
+    <style>
+    .encabezado-principal {background:linear-gradient(90deg,#667eea,#764ba2);padding:2rem;border-radius:10px;color:white;text-align:center;margin-bottom:1.5rem;box-shadow:0 4px 12px rgba(0,0,0,0.15);}
+    .contenedor-metrica {background:white;padding:1.2rem;border-radius:8px;border-left:4px solid #1f77b4;margin:0.5rem 0;box-shadow:0 3px 10px rgba(0,0,0,0.1);transition:all 0.3s ease;}
+    .contenedor-conversacion {background:white;border-radius:10px;padding:1.5rem;margin:1rem 0;border-left:5px solid #d62728;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+    .item-mensaje {background:#f8f9fa;border-radius:8px;padding:1rem;margin:0.8rem 0;border-left:4px solid #6c757d;}
+    .mensaje-tool {background:linear-gradient(135deg,#fff8f0,#ffe6d6);padding:1rem;border-radius:8px;border-left:4px solid #ff7f0e;margin:0.5rem 0;}
+    </style>
+    """)
+
+# ==================== FORMATEADOR UNIVERSAL PARA MENSAJES TOOL ====================
+def formatear_mensaje_tool(contenido, metadata=None):
+    """Formateador universal para mensajes Tool (cualquier vendor)"""
+    try:
+        if isinstance(contenido, dict):
+            data = contenido
+        else:
+            data = json.loads(contenido) if isinstance(contenido, str) and contenido.strip().startswith('{') else contenido
+    except:
+        data = str(contenido)
+
+    if isinstance(data, dict):
+        return _formatear_dict_tool(data)
+    elif isinstance(data, list):
+        return _formatear_list_tool(data)
+    else:
+        return f'<div class="mensaje-tool"><p>{str(data)[:500]}...</p></div>'
+
+def _formatear_dict_tool(data):
+    titulo = data.get('title', '') or data.get('name', '') or 'Documento Técnico'
+    html = f"""
+    <div class="mensaje-tool">
+        <h4>📄 {titulo}</h4>
+    """
+    for key, value in data.items():
+        if key in ['content', 'description'] and value:
+            html += f'<div><strong>{key.title()}:</strong><p>{str(value)[:300]}...</p></div>'
+        elif key == 'url' and value:
+            html += f'<div><strong>Enlace:</strong> <a href="{value}" target="_blank">🔗 Ver</a></div>'
+    html += "</div>"
+    return html
+
+def _formatear_list_tool(data_list):
+    html = '<div class="mensaje-tool"><h4>📋 Lista de elementos</h4>'
+    for i, item in enumerate(data_list[:3], 1):
+        if isinstance(item, dict):
+            item_title = item.get('title', f"Elemento {i}")
+            html += f'<div>{i}. {item_title}</div>'
+        else:
+            html += f'<div>{i}. {str(item)[:100]}...</div>'
+    if len(data_list) > 3:
+        html += f'<small>... y {len(data_list)-3} más</small>'
+    html += "</div>"
+    return html
+
+# ==================== CONSULTAS ====================
+@st.cache_data(ttl=900, show_spinner=False)
+def cargar_datos(_usuario, _contraseña, _servidor, _base_datos):
+    async def obtener():
+        client = PostgresConversationClient(**_config_bd := {"user": _usuario, "password": _contraseña, "host": _servidor, "database": _base_datos})
+        await client.connect()
+        resultados = await client.conn.fetch("""
+            SELECT m.*, c.title AS conversation_title, c.type AS conversation_type
+            FROM messages m
+            LEFT JOIN conversations c ON m.conversation_id = c.conversation_id
+            ORDER BY m."createdAt" DESC
+        """)
+        await client.close()
+        return pd.DataFrame([dict(fila) for fila in resultados]).pipe(lambda df: df.assign(createdAt=normalizar_fechas(df["createdAt"])) if "createdAt" in df.columns else df)
+    return ejecutar_async(obtener())
+
+# ==================== INTERFAZ PRINCIPAL ====================
+def main():
+    aplicar_estilos()
+    
+    # Sidebar
+    with st.sidebar:
+        st.markdown("### 🔗 Conexión BD")
+        usuario = st.text_input("Usuario", "usravad")
+        contraseña = st.text_input("Contraseña", "P@w0Rd1.2@25", type="password")
+        servidor = st.text_input("Servidor", "teepq02s-euwepc-teradpgsql.postgres.database.azure.com")
+        base_datos = st.text_input("Base de Datos", "avad_pre")
+        
+        if st.button("🚀 Conectar", type="primary", use_container_width=True):
+            with st.spinner("Conectando..."):
+                st.session_state.datos = cargar_datos(usuario, contraseña, servidor, base_datos)
+                st.session_state.config_bd = {"user": usuario, "password": contraseña, "host": servidor, "database": base_datos}
+                st.rerun()
+
+        # Menú de navegación
+        st.markdown("---")
+        modo = st.radio("Modo de análisis", ["Análisis General", "Conversaciones por Feedback"], index=0)
+
+    # Contenido principal
+    if 'datos' in st.session_state and st.session_state.datos is not None:
+        df = st.session_state.datos
+        
+        if modo == "Análisis General":
+            mostrar_analisis_general(df)
+        else:
+            mostrar_analisis_conversaciones(df)
+
+def mostrar_analisis_general(df):
+    """Análisis general con filtros actuales"""
+    # Filtros
+    col1, col2 = st.columns(2)
+    with col1:
+        fecha_inicio = st.date_input("Fecha Inicio", df["createdAt"].min().date() if not df.empty else datetime.now().date() - timedelta(days=30))
+    with col2:
+        fecha_fin = st.date_input("Fecha Fin", df["createdAt"].max().date() if not df.empty else datetime.now().date())
+    
+    # Filtrar por feedback
+    if "feedback" in df.columns:
+        opciones = list(df["feedback"].dropna().unique()) + ["Sin feedback"]
+        feedback_seleccionado = st.multiselect("Feedback", opciones, default=["positive", "negative", "Sin feedback"])
+    else:
+        feedback_seleccionado = None
+    
+    # Aplicar filtros
+    mask = (df["createdAt"] >= pd.Timestamp(fecha_inicio)) & (df["createdAt"] <= pd.Timestamp(fecha_fin))
+    if feedback_seleccionado and "Sin feedback" not in feedback_seleccionado:
+        mask &= df["feedback"].isin(feedback_seleccionado)
+    
+    df_filtrado = df[mask]
+    
+    # Métricas
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Mensajes", len(df_filtrado))
+    col2.metric("Usuarios", df_filtrado["user_id"].nunique())
+    col3.metric("Conversaciones", df_filtrado["conversation_id"].nunique())
+    col4.metric("Con Feedback", f"{df_filtrado['feedback'].notna().mean()*100:.1f}%")
+    
+    # Análisis de feedback
+    if "feedback" in df_filtrado.columns and not df_filtrado.empty:
+        crear_metricas_especificas(df_filtrado)
+    
+    # Tabla de datos
+    st.dataframe(df_filtrado[['createdAt', 'user_id', 'role', 'feedback', 'content']].head(100), use_container_width=True)
+    
+    # Exportación
+    if st.button("📥 Exportar CSV"):
+        csv = df_filtrado.to_csv(index=False, encoding='utf-8-sig', sep=';')
+        st.download_button("Descargar", csv, f"analisis_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
+
+def mostrar_analisis_conversaciones(df):
+    """Análisis de conversaciones completas por feedback"""
+    col1, col2 = st.columns(2)
+    with col1:
+        fecha_inicio = st.date_input("Fecha Inicio", df["createdAt"].min().date())
+    with col2:
+        fecha_fin = st.date_input("Fecha Fin", df["createdAt"].max().date())
+    
+    tipos_feedback = []
+    if "feedback" in df.columns:
+        tipos_feedback = st.multiselect("Buscar conversaciones con feedback", 
+                                       list(df["feedback"].dropna().unique()) + ["Sin feedback"],
+                                       default=["positive", "negative"])
+    
+    if st.button("🔍 Buscar Conversaciones", type="primary"):
+        # Obtener conversaciones completas
+        conversaciones = obtener_conversaciones_por_feedback(
+            st.session_state.config_bd,
+            tipos_feedback,
+            fecha_inicio,
+            fecha_fin
+        )
+        
+        if conversaciones.empty:
+            st.warning("No se encontraron conversaciones")
+            return
+        
+        # Mostrar conversaciones
+        for conv_id, datos in conversaciones.groupby("conversation_id"):
+            titulo = datos["conversation_title"].iloc[0] if pd.notna(datos["conversation_title"].iloc[0]) else "Sin título"
+            
+            with st.expander(f"🗣️ Conversación {conv_id} - {titulo} ({len(datos)} mensajes)"):
+                for idx, (_, mensaje) in enumerate(datos.iterrows(), 1):
+                    rol = mensaje.get("role", "N/A").lower()
+                    contenido = mensaje.get("content", "[Sin contenido]").strip()
+                    
+                    # Formatear mensajes Tool
+                    if rol == "tool":
+                        contenido = formatear_mensaje_tool(contenido, mensaje.get("metadata"))
+                    
+                    st.markdown(f"""
+                    <div style="padding: 0.5rem; margin: 0.5rem 0; border-left: 3px solid {'#2ca02c' if rol == 'user' else '#1f77b4' if rol == 'assistant' else '#ff7f0e'}; background: #f8f9fa;">
+                        <strong>{rol.title()}</strong> - {mensaje.get("createdAt", "")}<br>
+                        <div style="margin-top: 0.5rem;">{contenido}</div>
+                    </div>
+                    """)
+
+if __name__ == "__main__":
+    main()
 
 
 
