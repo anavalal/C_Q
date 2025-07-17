@@ -1,3 +1,51 @@
+Respuesta corta:
+El documento que tú tienes es solo el “boceto” interno de ACENS.
+Ahora tienes que transformarlo en la PROPUESTA FINAL para la RFP.
+🎯 Tu misión exacta (100 % Ana)
+Table
+Copy
+Paso	Lo que ya está (boceto)	Lo que tú añades para la entrega
+1	Objetivo, arquitectura y ejemplos	Elección concreta de algoritmo (p.ej. XGBoost), razones y métricas (MAPE ≤ 15 %).
+2	Pasos genéricos 1️⃣-5️⃣	Cronograma detallado (6 semanas con fechas, entregables y responsables).
+3	“TBD” en varias celdas	Rellenar los huecos:
+
+    ¿Batch diario o API en tiempo real?
+    ¿Score ≥ 0,8 para activar llamada?
+    ¿Databricks sobre AWS o Azure? |
+    | 4 | Arquitectura lógica | Diagrama C4 (Carlos) + presupuesto de licencias y horas. |
+    | 5 | Ejemplos ilustrativos | Cálculo de ROI esperado:
+    Reducción churn 3 % → ahorro €X.
+    Incremento CLV 8 % → ingreso adicional €Y. |
+    | 6 | Próximos pasos | Plan de riesgos (calidad de datos, GDPR, sesgo) y plan de mitigación. |
+
+📦 Entregable final que entregas tú (Ana)
+Una sección 6 completa titulada:
+
+    6. Propuesta técnica detallada – Casos de uso de IA (Churn & CLV)
+
+Contenido a incluir:
+
+    Resumen ejecutivo (1 párrafo).
+    Algoritmo y justificación técnica (elección concreta).
+    Arquitectura detallada (texto + diagrama que hará Carlos).
+    Cronograma Gantt (6 semanas).
+    Presupuesto y esfuerzo (horas y licencias).
+    KPIs de éxito y ROI.
+    Riesgos y mitigaciones.
+    Entregables y responsables.
+
+✅ Checklist para hoy en la reunión
+
+    [ ] ¿En qué página exacta del documento de respuesta va la sección 6?
+    [ ] ¿Formato máximo de páginas?
+    [ ] ¿Carlos tiene el diagrama o necesita tu texto?
+    [ ] ¿Fecha de revisión conjunta antes del 21-Jul? (sugiere 19-Jul 12:00).
+
+Con esto sabes exactamente qué añadir y podrás ir a la reunión con seguridad.
+
+
+
+
 📕 PARTE 1 – Caso 1: Predecir y evitar que los clientes se vayan (Churn)
 1. Portada del caso
 Título oficial: Predicción y prevención del Churn de clientes mediante IA y analítica avanzada
