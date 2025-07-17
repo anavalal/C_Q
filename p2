@@ -1,209 +1,83 @@
-Respuesta corta:
-El documento que tú tienes es solo el “boceto” interno de ACENS.
-Ahora tienes que transformarlo en la PROPUESTA FINAL para la RFP.
-🎯 Tu misión exacta (100 % Ana)
+
+#### 1️⃣ El problema hoy (en palabras de ACENS)
+> “Ahora solo descubrimos la baja cuando el cliente ya ha cerrado sus servicios.”
+Objetivo: recibir una alarma antes, para poder llamar o hacer una oferta antes de que se marche.___
+#### 2️⃣ Información que ya tenemos y no hay que pedir
 Table
 Copy
-Paso	Lo que ya está (boceto)	Lo que tú añades para la entrega
-1	Objetivo, arquitectura y ejemplos	Elección concreta de algoritmo (p.ej. XGBoost), razones y métricas (MAPE ≤ 15 %).
-2	Pasos genéricos 1️⃣-5️⃣	Cronograma detallado (6 semanas con fechas, entregables y responsables).
-3	“TBD” en varias celdas	Rellenar los huecos:
-
-    ¿Batch diario o API en tiempo real?
-    ¿Score ≥ 0,8 para activar llamada?
-    ¿Databricks sobre AWS o Azure? |
-    | 4 | Arquitectura lógica | Diagrama C4 (Carlos) + presupuesto de licencias y horas. |
-    | 5 | Ejemplos ilustrativos | Cálculo de ROI esperado:
-    Reducción churn 3 % → ahorro €X.
-    Incremento CLV 8 % → ingreso adicional €Y. |
-    | 6 | Próximos pasos | Plan de riesgos (calidad de datos, GDPR, sesgo) y plan de mitigación. |
-
-📦 Entregable final que entregas tú (Ana)
-Una sección 6 completa titulada:
-
-    6. Propuesta técnica detallada – Casos de uso de IA (Churn & CLV)
-
-Contenido a incluir:
-
-    Resumen ejecutivo (1 párrafo).
-    Algoritmo y justificación técnica (elección concreta).
-    Arquitectura detallada (texto + diagrama que hará Carlos).
-    Cronograma Gantt (6 semanas).
-    Presupuesto y esfuerzo (horas y licencias).
-    KPIs de éxito y ROI.
-    Riesgos y mitigaciones.
-    Entregables y responsables.
-
-✅ Checklist para hoy en la reunión
-
-    [ ] ¿En qué página exacta del documento de respuesta va la sección 6?
-    [ ] ¿Formato máximo de páginas?
-    [ ] ¿Carlos tiene el diagrama o necesita tu texto?
-    [ ] ¿Fecha de revisión conjunta antes del 21-Jul? (sugiere 19-Jul 12:00).
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-📕 PARTE 1 – Caso 1: Predecir y evitar que los clientes se vayan (Churn)
-1. Portada del caso
-Título oficial: Predicción y prevención del Churn de clientes mediante IA y analítica avanzada
-Traducción rápida: “Vamos a usar inteligencia artificial para adivinar quién se va a dar de baja y llegar a tiempo para retenerlo”.
-2. Objetivo de negocio (pág. 3)
-
-    Reducir la fuga de clientes creando un sistema que, antes de que se marchen, salte una alerta.
-    Activar acciones personalizadas (llamada, descuento, upgrade) solo a los que realmente están a punto de irse.
-
-3. ¿Por qué es clave? (pág. 3)
-
-    Hoy no hay forma de saber quién se va a ir.
-    Perder clientes baja los ingresos y frena el crecimiento.
-    La IA permite anticiparse: detecta señales de riesgo antes de la baja.
-    Retener es 5 veces más barato que conseguir uno nuevo.
-
-4. Impacto que esperan (pág. 3)
-
-    Mejor experiencia para el cliente (recibe ofertas útiles, no spam).
-    Ventas y soporte solo llaman a los que tienen alto riesgo de abandono.
-    Más retención y más valor por cliente.
-
-5. ¿Quién participa? (Stakeholders)
-
-    Comercial (llama y oferta)
-    CSU (Customer Support)
-    BI-DSS (equipo de datos)
-    Producto
-    Desarrollo de Negocio
-
-6. Funcionalidades del modelo (pág. 4)
-
-    Tipo de IA: clasificador binario → devuelve “se irá” o “no se irá”.
-    Algoritmos posibles: Random Forest, XGBoost o redes neuronales (se elegirá después).
-    Variables clave que mirará el modelo:
-    – Frecuencia de uso del servicio
-    – Quejas recientes
-    – Cambios en el consumo
-    – Atrasos de pago, etc.
-    Output: un score entre 0 y 1 (0,83 = 83 % probabilidad de irse).
-
-7. Datos que necesitamos (pág. 4)
-Internos:
-
-    Historial de compras y uso
-    Tickets de soporte
-    Logins al panel, emails abiertos, clicks en la app
-    Facturación y pagos
-
-Externos:
-
-    Opiniones y reseñas en internet
-
-8. Los 5 pasos para hacerlo realidad (pág. 5)
+			Dato
+			Dónde vive hoy
+			Ejemplo concreto
+			Historial de uso del servicio
+			Sixtina
+			“¿cuánto almacenamiento usa”, “¿cuántas máquinas enciende al mes”
+			Tickets al soporte
+			GECO
+			“3 incidencias de lentitud la última semana”
+			Logins en portal y apertura de e-mails
+			Presence
+			“ha entrado 1 vez en 30 días”
+			Facturación y pagos
+			Tucán + Navisión
+			“última factura impagada hace 12 días”
+			Opiniones y reseñas
+			Internet
+			“1 estrella en Google: ‘muy caro’ ”
+Todo esto se copia a la carpeta común (Data Lake) que ya existe; solo se limpian duplicados.
+#### 3️⃣ La calculadora que elegimos
+Entre tres opciones (Random Forest, XGBoost, Redes) ganó XGBoost porque:
+- Acierta mucho y rápido con datos mixtos.
+- Ya está instalado en Databricks / SageMaker / Vertex AI (los mismos ordenadores que usamos hoy).
+Resultado: para cada cliente obtenemos un número del 0 al 1
+- 0,05 → “tranquilo, no se va”.
+- 0,92 → “peligro máximo”.
+#### 4️⃣ ¿Cuándo calculamos ese número?
 Table
 Copy
-Paso	Qué hacemos	Herramientas que se mencionan
-1️⃣ Recolección	Sacar datos de Sixtina, GECO, Tucán, Presence, Navisión… unirlos y limpiarlos	Data Lake + ETL
-2️⃣ Entrenamiento	Elegir y ajustar el algoritmo de IA	Databricks / SageMaker
-3️⃣ Segmentación	Conectar el modelo al CRM para que sepa a quién avisar	(aún sin definir)
-4️⃣ Activación	Crear reglas: “si score > 0,8 → enviar email de descuento”	GECO / ActiveCampaign
-5️⃣ Monitorización	Ver si el modelo acierta y si las campañas funcionan	Power BI
-9. Arquitectura técnica (pág. 6-7)
-Foto mental:
-
-    Data Lake → gran almacén con todos los datos crudos.
-    ETL/ELT → limpia y organiza esos datos.
-    Feature Store → catálogo de variables listas para el modelo.
-    Entrenamiento → se prueba y ajusta el modelo en Databricks/SageMaker/Vertex AI.
-    Scoring → se calcula el riesgo:
-        Batch (todos los días a las 5 a.m.) o
-        Real-time (cuando el cliente llama, se devuelve la predicción en segundos).
-    Activación → el score llega a GECO, Tucán, Presence, ActiveCampaign para lanzar acciones.
-
-10. Ejemplos reales (pág. 8-10)
+			Momento
+			Qué pasa
+			Ejemplo
+			Cada madrugada 05:00 CET
+			Se revisa toda la base y se actualizan las notas.
+			189 000 clientes listos antes del desayuno.
+			En tiempo real
+			Cuando un cliente entra al panel o llama al 900, vemos su nota en menos de 0,2 segundos.
+			Agente ve “0,87” y sabe que tiene que ofrecer descuento.
+#### 5️⃣ Qué hace la máquina automáticamente con ese número
 Table
 Copy
-Cliente	Servicio	Score	Señales detectadas	Acción propuesta
-Maderas del Henares	Hosting compartido	0,83	No entra desde hace 62 días, dominio vence pronto, 3 emails sin respuesta	Llamada + descuento + migración gratis
-Agencia 360	Hosting profesional	0,75	Canceló 3 dominios, solo 1 login en 30 días	Llamada de televenta para optimizar servicios
-AppFinance Tech	Cloud + backup	0,89	Bajó 80 % consumo, fallan backups, 2 facturas impagadas	Ticket técnico + llamada + posible downgrade
-📕 PARTE 2 – Caso 2: Predecir cuánto vale cada cliente (CLV)
-1. Título
-Predicción del Customer Lifetime Value (CLV) → “Adivinar cuánto dinero gastará cada cliente en toda su vida con ACENS”.
-2. Objetivo de negocio (pág. 12)
-
-    Estimar cuánto ingresará cada cliente desde que entra hasta que se va.
-    Con esa cifra se decide dónde invertir (retención, marketing, descuentos).
-
-3. ¿Por qué es clave?
-
-    Segmentar por valor: proteger a los “clientes oro”.
-    Evitar gastar en clientes que no rentan.
-    Planificar ingresos futuros con base en la cartera actual.
-
-4. Impacto esperado (pág. 13)
-
-    Más retorno (ROI) en campañas porque van dirigidas al que más paga.
-    Menos despilfarro de descuentos.
-    Precios y fidelización alineados al valor real del cliente.
-
-5. Stakeholders
-Los mismos que en churn, más Finanzas (porque afecta al presupuesto).
-6. Tres formas concretas de usar el CLV (pág. 14)
-
-    Segmentación: si un cliente valioso empieza a mostrar señales de churn → actuar YA.
-    Cross-selling inteligente: al de alto CLV pero pocos servicios → proponerle más.
-    Descuentos inteligentes: solo ofrecer incentivos a los de alto CLV.
-
-7. Cómo se calcula (pág. 15)
-Fórmula sencilla:
-CLV = (ticket medio × frecuencia de compra) × años de relación
-Ejemplo:
-
-    Ticket medio = 1.000 €
-    Compra 2 veces al año
-    Se queda 3 años
-    → CLV = 1.000 × 2 × 3 = 6.000 €
-
-8. Arquitectura (pág. 16)
-Es idéntica a la de churn:
-Data Lake → ETL → Feature Store → Entrenamiento (Databricks/SageMaker) → Predicción → Dashboard → Activación.
-9. Próximos pasos (pág. 17)
-
-    Confirmar qué datos exactos usar.
-    Probar la fórmula con datos reales de ACENS.
-    Integrar el resultado en la ficha de cliente de Sixtina (volumen, margen, servicios recomendables).
-
-🎯 Resumen de 20 segundos para la reunión
-
-    Caso 1 – Churn: Modelo que avisa quién se va a ir y qué hacer para retenerlo.
-    Caso 2 – CLV: Modelo que dice cuánto vale cada cliente y dónde poner el dinero.
-    Ambos usan la misma arquitectura: Data Lake → limpieza → IA → dashboards → acciones en GECO/ActiveCampaign.
-    Falta detallar: algoritmo definitivo, fechas, costes y responsables → eso es lo que tú añadirás en la propuesta final.
+			Rango de nota
+			Ejemplo real
+			Acción que ya está configurada
+			≥ 0,8
+			AppFinance Tech 0,89
+			GECO crea tarea: “llamar y ofrecer 15 % de descuento”
+			0,6-0,79
+			Agencia del Henares 0,75
+			ActiveCampaign envía e-mail/SMS con promoción
+			< 0,6
+			—
+			Nada; solo vigilancia
+Las reglas están ya introducidas en GECO y ActiveCampaign; nadie las tiene que recordar.
+#### 6️⃣ Flujo día a día (qué toca cada quién)
+1. Noche → llegan los datos de los sistemas.
+2. 05:00 → se calculan las notas.
+3. 05:15 → GECO y ActiveCampaign ya saben a quién llamar o escribir.
+4. Durante la jornada → los agentes solo abren la lista y ejecutan la acción.
+5. Fin de semana → Power BI muestra si hemos salvado clientes y si el esfuerzo sale rentable.
+#### 7️⃣ Calendario realista (sin añadir personal)
+Table
+Copy
+			Semana
+			Verás
+			1-2
+			Todos los datos limpios y en la misma carpeta.
+			3-4
+			El modelo calculando notas y acertando al menos 8 de cada 10 bajas.
+			5-6
+			Primeras llamadas y e-mails saliendo al 5 % de clientes piloto.
+#### ✅ Frase final (copiada del borrador)
+> «Con la misma infraestructura que ya aparece en nuestro borrador, en 6 semanas tendremos un sistema que avisa quién se va y qué hacer para retenerlo, sin costes ni tecnologías adicionales.»
+	
+	
+	
