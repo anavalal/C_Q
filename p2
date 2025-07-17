@@ -1,69 +1,134 @@
-def analizar_conversaciones_sin_feedback(df):
-    st.markdown("## 🔍 Análisis Completo de Conversaciones Sin Feedback")
+📕 PARTE 1 – Caso 1: Predecir y evitar que los clientes se vayan (Churn)
+1. Portada del caso
+Título oficial: Predicción y prevención del Churn de clientes mediante IA y analítica avanzada
+Traducción rápida: “Vamos a usar inteligencia artificial para adivinar quién se va a dar de baja y llegar a tiempo para retenerlo”.
+2. Objetivo de negocio (pág. 3)
 
-    if "feedback" not in df.columns:
-        st.info("ℹ️ No hay datos de feedback disponibles")
-        return
+    Reducir la fuga de clientes creando un sistema que, antes de que se marchen, salte una alerta.
+    Activar acciones personalizadas (llamada, descuento, upgrade) solo a los que realmente están a punto de irse.
 
-    sin_feedback = df[df["feedback"].isna()].copy()
-    if sin_feedback.empty:
-        st.markdown('<div class="alerta-exito">✅ <strong>¡Excelente!</strong> Todas las conversaciones tienen feedback.</div>', unsafe_allow_html=True)
-        return
+3. ¿Por qué es clave? (pág. 3)
 
-    total_sin_feedback = len(sin_feedback)
-    conversaciones_afectadas = sin_feedback["conversation_id"].nunique() if "conversation_id" in sin_feedback.columns else 0
-    usuarios_afectados = sin_feedback["user_id"].nunique() if "user_id" in sin_feedback.columns else 0
+    Hoy no hay forma de saber quién se va a ir.
+    Perder clientes baja los ingresos y frena el crecimiento.
+    La IA permite anticiparse: detecta señales de riesgo antes de la baja.
+    Retener es 5 veces más barato que conseguir uno nuevo.
 
-    st.markdown(f'<div class="alerta-info">📋 <strong>{total_sin_feedback:,} mensajes sin feedback</strong> en <strong>{conversaciones_afectadas:,} conversaciones</strong> de <strong>{usuarios_afectados:,} usuarios</strong></div>', unsafe_allow_html=True)
+4. Impacto que esperan (pág. 3)
 
-    # Agrupar por conversación y mostrar desplegables estilo "Análisis por Feedback"
-    grupos = sin_feedback.groupby("conversation_id")
-    for conv_id, datos_conv in grupos:
-        titulo = datos_conv["conversation_title"].iloc[0] or "Sin título"
-        usuario = datos_conv["user_id"].iloc[0]
-        fecha_inicio = datos_conv["createdAt"].min()
-        fecha_fin = datos_conv["createdAt"].max()
-        duracion = fecha_fin - fecha_inicio
+    Mejor experiencia para el cliente (recibe ofertas útiles, no spam).
+    Ventas y soporte solo llaman a los que tienen alto riesgo de abandono.
+    Más retención y más valor por cliente.
 
-        st.markdown(f"""
-        <div class="contenedor-conversacion">
-            <div class="encabezado-conversacion">
-                <div class="info-conversacion">
-                    <div class="titulo-conversacion">🗣️ Conversación {conv_id}</div>
-                    <div class="meta-conversacion">📋 <strong>Título:</strong> {titulo}</div>
-                    <div class="meta-conversacion">👤 <strong>Usuario:</strong> {usuario}</div>
-                    <div class="meta-conversacion">📅 <strong>Duración:</strong> {duracion}</div>
-                </div>
-                <div class="etiqueta-conversacion">{len(datos_conv)} mensajes</div>
-            </div>
-        """, unsafe_allow_html=True)
+5. ¿Quién participa? (Stakeholders)
 
-        with st.expander(f"👁️ Ver conversación completa", expanded=False):
-            for idx, (_, msg) in enumerate(datos_conv.iterrows(), 1):
-                rol = msg.get("role", "N/A").lower()
-                contenido = msg.get("content", "[Sin contenido]").strip()
-                timestamp = pd.to_datetime(msg.get("createdAt", "")).strftime("%Y-%m-%d %H:%M:%S")
-                feedback = msg.get("feedback", "Sin feedback")
+    Comercial (llama y oferta)
+    CSU (Customer Support)
+    BI-DSS (equipo de datos)
+    Producto
+    Desarrollo de Negocio
 
-                clase_css = {
-                    "user": "mensaje-usuario",
-                    "assistant": "mensaje-asistente"
-                }.get(rol, "mensaje-sistema")
+6. Funcionalidades del modelo (pág. 4)
 
-                icono = {"user": "👤", "assistant": "🤖"}.get(rol, "⚙️")
+    Tipo de IA: clasificador binario → devuelve “se irá” o “no se irá”.
+    Algoritmos posibles: Random Forest, XGBoost o redes neuronales (se elegirá después).
+    Variables clave que mirará el modelo:
+    – Frecuencia de uso del servicio
+    – Quejas recientes
+    – Cambios en el consumo
+    – Atrasos de pago, etc.
+    Output: un score entre 0 y 1 (0,83 = 83 % probabilidad de irse).
 
-                st.markdown(f"""
-                <div class="item-mensaje {clase_css}">
-                    <div class="encabezado-mensaje">
-                        <div class="rol-mensaje">
-                            <span>{icono}</span>
-                            <span><strong>Mensaje #{idx} - {rol.title()}</strong></span>
-                            <span class="tiempo-mensaje">🕐 {timestamp} | 📝 Feedback: {feedback}</span>
-                        </div>
-                    </div>
-                    <div class="contenido-mensaje">{contenido}</div>
-                </div>
-                """, unsafe_allow_html=True)
+7. Datos que necesitamos (pág. 4)
+Internos:
 
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("---")
+    Historial de compras y uso
+    Tickets de soporte
+    Logins al panel, emails abiertos, clicks en la app
+    Facturación y pagos
+
+Externos:
+
+    Opiniones y reseñas en internet
+
+8. Los 5 pasos para hacerlo realidad (pág. 5)
+Table
+Copy
+Paso	Qué hacemos	Herramientas que se mencionan
+1️⃣ Recolección	Sacar datos de Sixtina, GECO, Tucán, Presence, Navisión… unirlos y limpiarlos	Data Lake + ETL
+2️⃣ Entrenamiento	Elegir y ajustar el algoritmo de IA	Databricks / SageMaker
+3️⃣ Segmentación	Conectar el modelo al CRM para que sepa a quién avisar	(aún sin definir)
+4️⃣ Activación	Crear reglas: “si score > 0,8 → enviar email de descuento”	GECO / ActiveCampaign
+5️⃣ Monitorización	Ver si el modelo acierta y si las campañas funcionan	Power BI
+9. Arquitectura técnica (pág. 6-7)
+Foto mental:
+
+    Data Lake → gran almacén con todos los datos crudos.
+    ETL/ELT → limpia y organiza esos datos.
+    Feature Store → catálogo de variables listas para el modelo.
+    Entrenamiento → se prueba y ajusta el modelo en Databricks/SageMaker/Vertex AI.
+    Scoring → se calcula el riesgo:
+        Batch (todos los días a las 5 a.m.) o
+        Real-time (cuando el cliente llama, se devuelve la predicción en segundos).
+    Activación → el score llega a GECO, Tucán, Presence, ActiveCampaign para lanzar acciones.
+
+10. Ejemplos reales (pág. 8-10)
+Table
+Copy
+Cliente	Servicio	Score	Señales detectadas	Acción propuesta
+Maderas del Henares	Hosting compartido	0,83	No entra desde hace 62 días, dominio vence pronto, 3 emails sin respuesta	Llamada + descuento + migración gratis
+Agencia 360	Hosting profesional	0,75	Canceló 3 dominios, solo 1 login en 30 días	Llamada de televenta para optimizar servicios
+AppFinance Tech	Cloud + backup	0,89	Bajó 80 % consumo, fallan backups, 2 facturas impagadas	Ticket técnico + llamada + posible downgrade
+📕 PARTE 2 – Caso 2: Predecir cuánto vale cada cliente (CLV)
+1. Título
+Predicción del Customer Lifetime Value (CLV) → “Adivinar cuánto dinero gastará cada cliente en toda su vida con ACENS”.
+2. Objetivo de negocio (pág. 12)
+
+    Estimar cuánto ingresará cada cliente desde que entra hasta que se va.
+    Con esa cifra se decide dónde invertir (retención, marketing, descuentos).
+
+3. ¿Por qué es clave?
+
+    Segmentar por valor: proteger a los “clientes oro”.
+    Evitar gastar en clientes que no rentan.
+    Planificar ingresos futuros con base en la cartera actual.
+
+4. Impacto esperado (pág. 13)
+
+    Más retorno (ROI) en campañas porque van dirigidas al que más paga.
+    Menos despilfarro de descuentos.
+    Precios y fidelización alineados al valor real del cliente.
+
+5. Stakeholders
+Los mismos que en churn, más Finanzas (porque afecta al presupuesto).
+6. Tres formas concretas de usar el CLV (pág. 14)
+
+    Segmentación: si un cliente valioso empieza a mostrar señales de churn → actuar YA.
+    Cross-selling inteligente: al de alto CLV pero pocos servicios → proponerle más.
+    Descuentos inteligentes: solo ofrecer incentivos a los de alto CLV.
+
+7. Cómo se calcula (pág. 15)
+Fórmula sencilla:
+CLV = (ticket medio × frecuencia de compra) × años de relación
+Ejemplo:
+
+    Ticket medio = 1.000 €
+    Compra 2 veces al año
+    Se queda 3 años
+    → CLV = 1.000 × 2 × 3 = 6.000 €
+
+8. Arquitectura (pág. 16)
+Es idéntica a la de churn:
+Data Lake → ETL → Feature Store → Entrenamiento (Databricks/SageMaker) → Predicción → Dashboard → Activación.
+9. Próximos pasos (pág. 17)
+
+    Confirmar qué datos exactos usar.
+    Probar la fórmula con datos reales de ACENS.
+    Integrar el resultado en la ficha de cliente de Sixtina (volumen, margen, servicios recomendables).
+
+🎯 Resumen de 20 segundos para la reunión
+
+    Caso 1 – Churn: Modelo que avisa quién se va a ir y qué hacer para retenerlo.
+    Caso 2 – CLV: Modelo que dice cuánto vale cada cliente y dónde poner el dinero.
+    Ambos usan la misma arquitectura: Data Lake → limpieza → IA → dashboards → acciones en GECO/ActiveCampaign.
+    Falta detallar: algoritmo definitivo, fechas, costes y responsables → eso es lo que tú añadirás en la propuesta final.
