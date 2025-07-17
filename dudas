@@ -1,0 +1,298 @@
+tengo que hacer esto, yo soy ana:Buenos días,
+
+ 
+
+Tenemos una RFP en marcha que se ha publicado después de una cualificación previa realizada en ACENS (Empresa del grupo Telefónica), donde nos solicitan acompañamiento en su plan estratégico del dato.
+
+Como parte de esta colaboración, solicitan implementar dos casos de uso: Churn de clientes y Customer Lifecycle Value
+
+ 
+
+Se os ha identificado como componentes del grupo de respuesta (Carlos 20% y Ana 100%) a la propuesta que estamos trabajando con INVENT y que tenemos que entregar el 21 de Julio.
+
+ 
+
+Teneis toda la documentación en esta carpeta:
+
+ 
+
+​Folder icon Acens RFP Data
+
+ 
+
+Con la documentación del cliente previa a la licitación, nuestros documentos de cualificación, la RFP que lanza ACENS y el documento de respuesta que estamos preparando y que ya está muy avanzado a falta de incluir el detalle de los casos de uso de IA.
+
+ 
+
+@Montoliu Ducay, Carlos, @Valls Albert, Ana Maria os envío convo de las reuniones diarias con invent y os convoco hoy para hacer revisión con vosotros. Id revisando la doc, por favor.
+
+ 
+
+Gracias!!
+
+
+
+
+
+y esta es la info de los casos de uso de la IA:
+Data & IA driven
+Casos de Uso
+- 2 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Caso de uso
+Predicción y prevención del Churn de clientes
+mediante IA y analítica avanzada
+- 3 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes
+Objetivo de Negocio:
+• Reducir la pérdida de clientes mediante modelos de predicción que permitan activar acciones preventivas y
+personalizadas, aumentando la retención y el valor de cliente.
+• Identificar clientes en riesgo de abandono para activar acciones preventivas personalizadas.
+¿Por qué es clave este caso de uso?
+• Actualmente no se dispone de un mecanismo proactivo para prevenir el churn.
+• El churn impacta directamente en ingresos y crecimiento.
+• La IA permite anticipar riesgos antes de que el cliente se dé de baja.
+• Retener es hasta 5x más rentable que captar un nuevo cliente.
+Impacto Esperado
+Mejora de experiencia cliente.
+Retención inteligente basada en datos.
+Mayor eficiencia de los equipos comerciales a 
+través de focalizar esfuerzos en los clientes que 
+están en riesgo de abandonar.
+Stakeholders
+Comercial 
+CSU
+BI - DSS
+Producto
+Desarrollo de Negocio
+- 4 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes – Funcionalidades esperadas del modelo
+Desarrollar un modelo de predicción de churn (fuga de clientes) que identifique clientes con alta probabilidad de baja en el
+corto plazo, con el fin de activar acciones preventivas automatizadas desde negocio y customer service.
+Modelo de IA aplicada:
+•Tipo de modelo: Clasificación binaria (churn vs no 
+churn).
+•Algoritmos posibles: Random Forest, XGBoost, 
+Redes Neuronales.
+•Variables clave: Frecuencia de uso, quejas 
+recientes, cambios en el patrón de consumo, etc.
+•Output: Probabilidad de churn por cliente => score.
+Fuentes de datos requeridos:
+•Datos internos:
+• Historial de compras / uso del servicio.
+• Interacciones con CSU.
+• Engagement digital (paneles, email, 
+app).
+• Datos de facturación y pagos.
+•Datos externos:
+• Opiniones y reseñas.
+- 5 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes – ¿Qué haremos?
+Pasos / Etapas Actividades técnicas y funcionales Tecnologías / Herramientas
+1️⃣ Recolección y unificación 
+de datos. - Identificación y extracción de datos históricos de clientes desde 
+sistemas fuente: Sixtina, GECO, Tucán, Presence, Navisión, Otras. 
+- Consolidación y homologación de estructuras de datos en un data lake.
+- Validar la calidad de los datos: duplicados, nulos, inconsistencias.
+Data lake acens / ETL
+2️⃣ Entrenamiento de un 
+modelo de predicción con IA.
+- Selección del algoritmo de machine learning más adecuado. TBD
+3️⃣ Segmentación e 
+identificación de casos.
+- Conexión directa con sistemas de negocio (CRM, Marketing Automation) 
+para activar respuestas.
+TBD
+4️⃣ Activación de campañas 
+proactivas
+- Diseño de reglas de activación basadas en el score y el segmento del 
+cliente.
+- Integración con plataformas de engagement (para envío de 
+comunicaciones personalizadas (emails, llamadas, SMS, ofertas 
+específicas). 
+GECO / Active Campaign
+5️⃣ Monitorización, reporting 
+y mejora continua
+- Construcción de dashboards con los KPIs clave: tasa de churn 
+operativo real vs. predicción, evolución del scoring. 
+- Seguimiento de métricas del modelo e impacto de campañas.
+Power BI
+- 6 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes – Arquitectura 
+Data lake
+• Todos los datos de la organización (clientes, ventas, interacciones, NPS, soporte, etc.) se almacenan 
+en bruto en un Data Lake.
+• Es el repositorio central y flexible, donde se concentran datos estructurados (de bases de datos), 
+semiestructurados (logs, formularios) y no estructurados (emails, tickets de soporte).
+ETL
+• Desde el Data Lake, los datos se limpian, transforman y modelan. Esto se hace mediante procesos 
+ETL o ELT (Extract – Transform – Load)
+• El resultado es un conjunto de datos preparados, con las variables y formatos que usará el modelo. 
+Estos datos pueden guardarse en una Feature Store.
+Feature
+store
+• Feature Store es una especie de "catálogo" de variables (features) listas para usar por modelos de 
+machine learning.
+• Permite mantener consistencia entre lo que se usa en entrenamiento y en inferencia (predicción), 
+además de compartir variables entre distintos modelos de negocio.
+- 7 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes – Arquitectura 
+Entrenamiento 
+del modelo
+• Con los datos listos, se pasa a la etapa de entrenamiento del modelo de machine learning. Esto 
+puede hacerse en plataformas de desarrollo de IA como: Databricks / SageMaker / Vertex AI.
+• Se prueba el modelo, se evalúa su rendimiento, y se ajustan hiperparámetros. Se entrena sobre 
+históricos de clientes que se fueron o se quedaron.
+Scoring
+• Una vez entrenado y validado el modelo, se pone en producción. Las predicciones se pueden hacer 
+de dos formas: En batch: se ejecuta el scoring de todos los clientes una vez al día, semana o mes. 
+En tiempo real (API): cuando un cliente realiza una acción (como llamar a CSU), el modelo responde 
+en segundos si tiene riesgo de churn.
+Activación
+• Las predicciones se devuelven a los sistemas operativos donde se toma acción:
+• GECO, TUCÁN pueden recibir el score de riesgo de abandono.
+• El equipo de CSU puede recibir alertas y cargas en Presence.
+• Se pueden lanzar campañas automáticas si el riesgo supera un umbral, Active campeigne.
+- 8 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes - Ejemplo
+Caso 1: Cliente Pyme – Hosting compartido
+Cliente: Maderas del Henares S.L.
+Servicio: Hosting compartido + dominio + web + correo.
+Score de churn: 0.83 (alto riesgo)
+Indicadores clave detectados:
+• Último acceso al panel de control hace 62 días.
+• El dominio principal vence en 15 días y no hay renovación activa.
+• Ha recibido 3 campañas de renovación sin interacción.
+• Apertura de ticket por lentitud y otros inconvenientes sin respuesta en 5 días.
+Acción sugerida:
+• Llamada de retención + email de renovación automática con descuento. Opción de migración gratuita a un plan superior 
+optimizado.
+- 9 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes - Ejemplo
+Caso 2: Agencia de marketing – Servicios de hosting y correo
+Cliente: Agencia del Henares 360
+Servicio: Hosting profesional + dominios + correo empresarial
+Score de churn: 0.75 (riesgo medio-alto)
+Indicadores clave detectados:
+• Reducción del 50% en cuentas de correo activas en los últimos 2 meses.
+• Cancelación de 3 dominios secundarios sin renovación prevista.
+• Uso intermitente del panel de control: solo 1 acceso en 30 días.
+• No ha interactuado con campañas de mejora de plan ni soporte proactivo.
+Acción sugerida:
+•
+Llamada desde CSU – Televenta para revisar necesidades actuales de infraestructura digital + propuesta de 
+optimización de servicios (consolidación de cuentas, upgrade a hosting administrado o plan de correo profesional).
+- 10 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción y reducción del churn de clientes - Ejemplo
+Caso 3: Startup – Cloud y backup
+Cliente: AppFinance Tech del Henares S.L.
+Servicio: Infraestructura cloud + backup automático
+Score de churn: 0.89 (riesgo muy alto)
+Indicadores clave detectados:
+• Disminución del 80% en consumo de recursos cloud.
+• Últimos 3 backups fallidos sin resolución.
+• 2 intentos de facturación fallida este mes.
+• No abre emails técnicos ni de facturación desde hace 45 días.
+Acción sugerida:
+• Ticket automático + llamada técnica para revisión de configuración y propuesta de downgrade o bonificación por 
+interrupciones.
+- 11 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Caso de uso
+Predicción del Customer Lifetime Value
+(CLV)
+- 12 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción del Customer Lifetime Value
+Objetivo de Negocio: Estimar de forma predictiva el valor económico total que un cliente aportará durante su relación
+con la empresa, para tomar decisiones de marketing, retención y desarrollo comercial más inteligentes.
+¿Por qué es clave este caso de uso?
+El Customer Lifetime Value (CLV) mide cuánto beneficio puede generar un cliente desde su adquisición hasta el final de 
+la relación, se busca:
+• Identificar / segmentar clientes de alto valor y crecimiento (para invertir más en ellos).
+• Prevenir bajas de clientes valiosos.
+• Optimizar / priorizar campañas de marketing de adquisición y retención según el valor potencial / upselling y su 
+inversión.
+• Estimar ingresos futuros a partir de la base actual de clientes. / Mejorar la rentabilidad de clientes.
+- 13 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción del Customer Lifetime Value
+Impacto Esperado
+• Mejora en ROI de campañas de retención y fidelización 
+(dirigidas por valor, no volumen).
+• Mejora de rentabilidad al reducir inversión en clientes de 
+bajo valor.
+• Presupuesto de ingresos basado en comportamiento 
+individualizado.
+• Soporte a pricing y diseño de programas de fidelización.
+• Alineación entre Producto, Comercial y CSU.
+Stakeholders
+Comercial 
+CSU
+Financiero BI - DSS
+Producto
+Desarrollo de Negocios
+- 14 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción del Customer Lifetime Value - Casos de uso específicos
+Caso 1: Segmentación por CLV:
+• Identifica clientes valiosos que muestran señales de churn.
+• Aplica acciones proactivas: llamadas, beneficios, upgrades.
+Caso 2: Cross-selling inteligente:
+• Prioriza a clientes con alto CLV potencial pero baja adopción de servicios.
+• Activas recomendaciones personalizadas.
+Caso 3: Optimización de descuentos y promociones:
+• Focaliza incentivos en clientes de alto CLV.
+• Evita sobreinversión en clientes poco rentables.
+- 15 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción del Customer Lifetime Value – Cálculo
+Enfoque Data-Driven - fórmula básica:
+CLV = (Ticket medio × Frecuencia de compra) × Duración promedio de la relación
+• Variables clave:
+• Ticket medio: Ingresos por transacción.
+• Frecuencia: Número de compras en un periodo.
+• Duración: Tiempo promedio de relación con el cliente.
+• Ejemplo aplicado:
+• Ticket medio: €1000 (servicios cloud/hosting).
+• Frecuencia: 2 compras/año.
+• Duración: 3 años.
+• CLV: €1000 × 2 × 3 = €6000.
+- 16 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción del Customer Lifetime Value – Flujo de Arquitectura del Caso de Uso 
+1) Data Lake
+↓
+2) ETL - Data Factory
+↓
+3) Feature Store / Data warehouse
+↓
+4) Entrenamiento del modelo (Databricks / SageMaker)
+↓
+5) Predicción de CLV por cliente (batch o tiempo real)
+↓
+6) Output a GECO / dashboards comerciales
+↓
+7) Activación automatizada: campañas, alertas, beneficios
+- 17 -
+CONFIDENCIAL – acens ***Este documento está clasificado como PUBLICO por acens. ***This document is classified as PUBLIC by acens.
+Predicción del Customer Lifetime Value – Cálculo
+Próximos pasos
+• Identificación de las fuentes de datos necesarias.
+• Priorización de las variables de negocio que definen el CLV.
+• Desarrollo de la arquitectura, modelado y validación con histórico real.
+• Integración con GECO / Ficha de Sixtina:
+• Volumen de negocio, anual último ejercicio, 
+• Comparativos ejercicios anteriores, – creciente, decreciente o 
+neutral.
+• Margen alto, medio, bajo.
+• Servicios recomendables.
+y herramientas de activación (correos, llamadas).
