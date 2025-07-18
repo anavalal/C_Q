@@ -1,263 +1,113 @@
-# Propuesta de Solución ML para ACENS
-*Casos de Uso: Predicción de Churn y Customer Lifetime Value*
-
----
-
-## 🎯 SLIDE 1: Situación Actual y Oportunidad
-**El Desafío de ACENS**
-
-### Problemática Identificada:
-- **Churn Reactivo:** "Actualmente no se dispone de un mecanismo proactivo para prevenir el churn" *(Análisis interno, pág. 3)*
-- **Valoración de Clientes:** Sin capacidad predictiva para estimar el valor económico total de cada cliente durante su ciclo de vida
-
-### Impacto en el Negocio:
-- **Pérdida de Ingresos:** Clientes que se van sin posibilidad de intervención
-- **Ineficiencia Comercial:** Inversión homogénea sin diferenciación por valor del cliente
-- **Falta de Priorización:** Recursos limitados sin criterio de rentabilidad
-
-### Oportunidad Estratégica:
-Implementar capacidades predictivas que permitan:
-- ✅ **Anticipación:** Detectar riesgo de churn 60-90 días antes
-- ✅ **Segmentación:** Priorizar clientes por valor futuro
-- ✅ **Automatización:** Respuestas inmediatas según riesgo/valor
-
----
-
-## 🔄 SLIDE 2: Caso de Uso 1 - Predicción de Churn
-**Anticipación Proactiva de Bajas**
-
-### Objetivo del Modelo:
-Predecir la probabilidad de baja de cada cliente en los próximos 60-90 días
-
-### Arquitectura de Datos:
-**Fuentes Existentes en ACENS:**
-- **Transaccionales:** Sixtina, Navisión (historial de compras, facturación)
-- **Comportamiento:** GECO (interacciones CSU), Tucán (engagement digital)
-- **Uso del Servicio:** Presence (actividad en paneles, aplicaciones)
-- **Externos:** Opiniones y reseñas online
-
-### Selección del Algoritmo: XGBoost
-**Justificación Técnica:**
-
-#### ¿Por qué XGBoost vs Otras Opciones?
-
-| Criterio | XGBoost ✅ | Random Forest | Redes Neuronales |
-|----------|------------|---------------|------------------|
-| **Datos Mixtos** | Excelente | Bueno | Requiere preprocesado |
-| **Interpretabilidad** | Alta | Alta | Baja |
-| **Velocidad Inferencia** | <200ms | <200ms | >500ms |
-| **Overfitting** | Controlado | Medio | Alto riesgo |
-| **Infraestructura** | Nativa en Databricks/SageMaker | Disponible | Requiere GPU |
-
-#### Ventajas Específicas para ACENS:
-- **Robustez:** Maneja automáticamente valores nulos y outliers
-- **Feature Importance:** Identifica qué variables predicen mejor el churn
-- **Escalabilidad:** Procesa eficientemente la base completa de clientes
-- **Disponibilidad:** Ya integrado en la infraestructura cloud existente
-
----
-
-## 📊 SLIDE 3: Churn - Implementación Operativa
-**Del Modelo a la Acción**
-
-### Arquitectura de Ejecución:
-
-#### Procesamiento Batch:
-- **Frecuencia:** Diario a las 05:00 CET
-- **Alcance:** Toda la base de clientes
-- **Output:** Score 0-1 para cada cliente
-
-#### API en Tiempo Real:
-- **Trigger:** Llamada de cliente o acceso a panel
-- **Latencia:** <200ms
-- **Integración:** Directa con GECO (CRM)
-
-### Reglas de Acción Automática:
-
-| Score | Probabilidad | Acción Inmediata | Sistema |
-|-------|-------------|------------------|---------|
-| **≥ 0.8** | >80% fuga | Alerta comercial + llamada retención | GECO |
-| **0.6-0.79** | 60-79% fuga | Campaña email/SMS personalizada | ActiveCampaign |
-| **< 0.6** | <60% fuga | Monitorización pasiva | Dashboard |
-
-### Casos Reales Identificados:
-- **AppFinance Tech:** Score 0.89 → Llamada inmediata + descuento
-- **Agencia del Henares 360:** Score 0.75 → Campaña email específica
-
----
-
-## 💰 SLIDE 4: Caso de Uso 2 - Customer Lifetime Value
-**Predicción de Valor Económico**
-
-### Objetivo del Modelo:
-Estimar el valor económico total que cada cliente aportará durante su relación con ACENS
-
-### Variables Predictoras (Datos Existentes):
-- **Ticket Medio:** Valor promedio por transacción
-- **Frecuencia:** Número de compras por período
-- **Duración:** Tiempo promedio de permanencia
-- **Margen:** Rentabilidad por cliente
-- **Servicios:** Portfolio actual vs recomendable
-
-### Selección del Algoritmo: Gamma-Log Regression
-**Justificación Técnica:**
-
-#### ¿Por qué Gamma-Log vs Otras Opciones?
-
-| Criterio | Gamma-Log ✅ | Regresión Lineal | Random Forest |
-|----------|-------------|------------------|---------------|
-| **Distribución CLV** | Ajuste perfecto | Asume normalidad | No paramétrico |
-| **Valores Positivos** | Garantizado | No garantizado | No garantizado |
-| **Interpretabilidad** | Alta | Alta | Media |
-| **Extrapolación** | Controlada | Problemática | Limitada |
-
-#### Ventajas Específicas:
-- **Distribución Natural:** CLV sigue distribución gamma (sesgada positiva)
-- **Estabilidad:** Predicciones consistentes en diferentes rangos
-- **Interpretación:** Coeficientes tienen significado económico directo
-- **Robustez:** Maneja bien la heterogeneidad de clientes
-
----
-
-## 🎯 SLIDE 5: CLV - Segmentación y Acciones
-**Estrategias Diferenciadas por Valor**
-
-### Fórmula Base:
-```
-CLV = (Ticket Medio × Frecuencia) × Duración Esperada
-```
-
-### Ejemplo Práctico:
-**Cliente Tipo:** Agencia de Marketing
-- Ticket Medio: €1.000
-- Frecuencia: 2 compras/año
-- Duración: 3 años
-- **CLV = €1.000 × 2 × 3 = €6.000**
-
-### Estrategias por Segmento:
-
-| Segmento CLV | Características | Estrategia Automática |
-|--------------|-----------------|----------------------|
-| **Alto + Riesgo Churn** | >€5.000 + Score>0.6 | Llamada ejecutiva + upgrades + beneficios |
-| **Alto + Baja Adopción** | >€5.000 + <50% servicios | Upsell/cross-sell personalizado |
-| **Medio** | €1.000-€5.000 | Campañas automáticas segmentadas |
-| **Bajo** | <€1.000 | Optimización de costes, sin descuentos |
-
-### Modalidades de Cálculo:
-- **Batch Semanal:** Segmentación global y rankings
-- **Tiempo Real:** CLV visible en ficha de cliente (GECO)
-
----
-
-## ⚙️ SLIDE 6: Arquitectura Técnica y Cronograma
-**Implementación con Infraestructura Existente**
-
-### Stack Tecnológico:
-
-#### Datos:
-- **Fuentes:** Sixtina, GECO, Tucán, Presence, Navisión
-- **Almacenamiento:** Data Lake existente
-- **Procesamiento:** ETL/ELT para limpieza y feature engineering
-
-#### Machine Learning:
-- **Plataforma:** Databricks / SageMaker / Vertex AI
-- **Modelos:** XGBoost (Churn) + Gamma-Log Regression (CLV)
-- **Deployment:** API REST para tiempo real + Jobs batch
-
-#### Activación:
-- **CRM:** GECO (alertas y scores en fichas)
-- **Marketing:** ActiveCampaign (campañas automáticas)
-- **Monitorización:** Power BI (dashboards ejecutivos)
-
-### Cronograma de Implementación:
-
-| Fase | Semanas | Entregables | Validación |
-|------|---------|-------------|------------|
-| **1. Data Pipeline** | 1-2 | Data Lake unificado, variables calculadas | Calidad de datos >95% |
-| **2. Model Development** | 3-4 | Modelos entrenados y validados | Precisión >80% |
-| **3. Integration & Pilot** | 5-6 | Sistema funcionando con 5% de clientes | Latencia <200ms |
-
----
-
-## 📈 SLIDE 7: ROI y Métricas de Éxito
-**Resultados Esperados y Medición**
-
-### KPIs Principales:
-
-#### Churn Prediction:
-- **Reducción de Bajas:** 25% menos bajas no controladas
-- **Tiempo de Reacción:** De 0 días a 60-90 días de anticipación
-- **ROI Campañas:** 300% en acciones de retención
-- **Precisión Modelo:** >80% en predicciones
-
-#### Customer Lifetime Value:
-- **Incremento Ingresos:** 8% en campañas segmentadas
-- **Eficiencia Comercial:** 40% reducción en tiempo de prospección
-- **Optimización Costes:** 15% ahorro en clientes de bajo valor
-- **Precisión CLV:** <20% error vs valor real
-
-### Dashboard de Control:
-- **Operativo:** Alertas diarias, scores en tiempo real
-- **Táctico:** Semanal - clientes salvados, campañas efectivas
-- **Estratégico:** Mensual - ROI global, evolución segmentos
-
-### Métricas de Calidad del Modelo:
-- **Churn:** Precision, Recall, F1-Score, AUC-ROC
-- **CLV:** MAPE, RMSE, R² ajustado
-
----
-
-## ✅ SLIDE 8: Propuesta de Valor y Siguientes Pasos
-**Resumen Ejecutivo**
-
-### Valor Diferencial de la Propuesta:
-
-#### Técnico:
-- **Algoritmos Optimizados:** XGBoost y Gamma-Log específicos para cada caso
-- **Infraestructura Existente:** Zero inversión adicional en tecnología
-- **Integración Nativa:** Flujo directo con sistemas actuales de ACENS
-
-#### Negocio:
-- **Predictivo vs Reactivo:** Anticipación de 60-90 días
-- **Segmentación Inteligente:** Recursos enfocados en clientes de alto valor
-- **ROI Inmediato:** Resultados medibles desde la primera semana
-
-### Cronograma Ejecutivo:
-**6 semanas** para tener ambos modelos operativos en producción
-
-### Siguientes Pasos:
-1. **Aprobación del proyecto** y acceso a sistemas de datos
-2. **Kick-off técnico** con equipos de IT y negocio
-3. **Inicio inmediato** de la fase de data pipeline
-
-### Compromiso de Resultados:
-> *"Con la infraestructura existente de ACENS, en 6 semanas tendremos un sistema que predice quién se va y cuánto vale cada cliente, con acciones automáticas que optimizan la rentabilidad sin inversiones adicionales en tecnología."*
-
----
-
-## 📋 ANEXO: Justificación Técnica Detallada
-**Respaldo Científico de las Decisiones**
-
-### Selección XGBoost para Churn:
-
-#### Benchmark Interno:
-- **Precisión:** 83% vs 76% (Random Forest) vs 79% (Neural Networks)
-- **Interpretabilidad:** Feature importance nativa
-- **Escalabilidad:** 100K+ registros en <5 minutos
-
-#### Características del Dataset ACENS:
-- **Datos Mixtos:** Categóricos + numéricos + temporales
-- **Valores Nulos:** 15-20% en variables de engagement
-- **Desbalanceado:** 8% churn rate (típico en B2B)
-
-### Selección Gamma-Log para CLV:
-
-#### Distribución CLV Observada:
-- **Sesgo Positivo:** 70% clientes <€2.000, 5% >€10.000
-- **Heteroscedasticidad:** Varianza aumenta con valor medio
-- **Valores Atípicos:** 2% clientes con CLV >€50.000
-
-#### Validación Estadística:
-- **Kolmogorov-Smirnov:** p<0.05 para distribución gamma
-- **AIC/BIC:** Mejor ajuste vs modelos alternativos
-- **Residuos:** Distribución normal, homocedasticidad
+# Objetivos y Propuesta de Desarrollo Profesional
+
+## Resumen de Experiencia Actual
+
+**Proyecto RAN - Mis Contribuciones:**
+- Diseñé y desplegué asistentes inteligentes usando Azure Functions, Azure OpenAI y Language Studio
+- Integré datos empresariales a través de Blob Storage y Data Lake para permitir interacción en lenguaje natural y ejecución automatizada de tareas
+- Desarrollé modelos predictivos en Python aplicados a búsqueda semántica, comprensión de documentos y optimización de procesos de negocio
+- Implementé soluciones usando Azure Machine Learning, OpenAI, Hugging Face, Scikit-learn y PyTorch
+- Desplegué modelos escalables via endpoints de Azure y automaticé pipelines con herramientas nativas de Azure
+- Optimicé modelos mediante ajuste de hiperparámetros e ingeniería de prompts, construyendo sistemas de IA robustos, precisos y éticamente alineados listos para producción
+
+## Oportunidad Actual: Tracking Analytics
+
+**Próximo Proyecto:**
+- **Área:** Computer Vision en IA
+- **Entorno:** Azure
+- **Roles potenciales:** Data Architect y Data Analyst
+- **Status:** Me han tenido en cuenta para este proyecto debido a mi experiencia previa en Azure AI y mi capacidad demostrada en implementación de soluciones de machine learning
+- **Estado:** Reunión de confirmación programada para la próxima semana
+
+**Contribución Paralela:**
+- Estoy colaborando en propuesta RFP para Acens (Grupo Telefónica)
+- Objetivo: Selección del modelo que mejor se ajuste a las necesidades de casos de uso actuales (churn y CLV)
+
+## Objetivos Propuestos
+
+### 1. Objetivos a Corto Plazo (3-6 meses)
+- **Transición exitosa al proyecto Tracking Analytics**
+  - Adquiriré competencias específicas en Computer Vision
+  - Estableceré arquitectura de datos robusta para analytics
+  - Definiré métricas y KPIs para el seguimiento y análisis
+  
+- **Consolidación del rol de Data Architect/Analyst**
+  - Diseñaré arquitecturas de datos escalables en Azure
+  - Implementaré pipelines de análisis automatizados
+  - Desarrollaré dashboards y reportes ejecutivos
+
+### 2. Objetivos a Medio Plazo (6-12 meses)
+- **Especialización en Computer Vision**
+  - Obtendré certificación en Azure Computer Vision
+  - Desarrollaré modelos de detección y reconocimiento avanzados
+  - Implementaré soluciones de tracking en tiempo real
+  
+- **Liderazgo técnico**
+  - Mentorizaré a junior developers en proyectos de IA
+  - Estableceré mejores prácticas para MLOps en la organización
+  - Contribuiré a la estrategia de IA de la empresa
+
+### 3. Objetivos de Desarrollo Profesional
+- **Certificaciones técnicas**
+  - AI-102: Azure AI Engineer Associate (actualmente en curso)
+  - DP-100: Azure Data Scientist Associate (planificada a corto plazo)
+  - Azure Data Engineer Associate
+  - Azure Solutions Architect Expert
+  
+- **Habilidades de negocio y ciencia de datos**
+  - Mejoraré capacidades de presentación a stakeholders
+  - Desarrollaré expertise en ROI de proyectos de IA
+  - Fortaleceré habilidades de gestión de proyectos
+  - Profundizaré en técnicas avanzadas de ciencia de datos
+
+### 4. Contribución al Negocio
+- **Propuesta Acens-Telefónica**
+  - Lidero la evaluación técnica de modelos
+  - Desarrollo framework de selección de modelos
+  - Aseguro implementación exitosa de la solución elegida
+  
+- **Innovación y mejora continua**
+  - Identifico oportunidades de aplicación de IA en otros departamentos
+  - Propongo mejoras en procesos actuales mediante automatización
+  - Contribuyo al posicionamiento de la empresa como referente en IA
+
+## Recursos y Apoyo Necesarios
+
+### Formación y Desarrollo
+- Tiempo dedicado para certificaciones (estimado: 4-6 horas semanales)
+- Acceso a plataformas de formación (Microsoft Learn, Coursera, etc.)
+- Participación en conferencias y eventos del sector
+
+### Recursos Técnicos
+- Acceso a entornos de desarrollo y testing en Azure
+- Licencias de herramientas especializadas de Computer Vision
+- Hardware/recursos cloud para experimentación
+
+### Networking y Colaboración
+- Participación en comunidades técnicas internas
+- Colaboración con equipos de producto y negocio
+- Mentoring de profesionales senior
+
+## Métricas de Éxito
+
+### Técnicas
+- Tiempo de implementación de soluciones de tracking
+- Precisión y rendimiento de modelos de Computer Vision
+- Disponibilidad y escalabilidad de arquitecturas implementadas
+
+### Negocio
+- ROI de proyectos liderados
+- Satisfacción de stakeholders internos
+- Contribución a la captación de nuevos proyectos/clientes
+
+### Personales
+- Certificaciones obtenidas
+- Proyectos liderados exitosamente
+- Reconocimiento interno y feedback positivo
+
+## Próximos Pasos
+
+1. **Inmediato:** Preparación para la reunión de confirmación del proyecto Tracking Analytics
+2. **Semana próxima:** Definición final de rol y responsabilidades
+3. **Primer mes:** Plan detallado de onboarding y formación específica
+4. **Trimestre:** Primeros entregables y validación de arquitectura propuesta
